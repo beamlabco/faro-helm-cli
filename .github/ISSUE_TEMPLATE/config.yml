@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Architecture Doc
+    url: https://github.com/beamlab/faro/blob/main/docs/architecture-v2.md
+    about: Faro Suite database architecture and schema reference
+  - name: Integration Spec
+    url: https://github.com/beamlab/faro/blob/main/docs/github-integration-spec.md
+    about: GitHub integration spec for Claude Code

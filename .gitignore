@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+*.local
+.DS_Store
+
+bin/
+*.exe
+coverage.out
+coverage.html
