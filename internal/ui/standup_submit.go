@@ -8,9 +8,9 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/beamlabco/faro-helm/internal/api"
-	"github.com/beamlabco/faro-helm/internal/project"
-	"github.com/beamlabco/faro-helm/internal/standup"
+	"github.com/beamlabco/faro-helm-cli/internal/api"
+	"github.com/beamlabco/faro-helm-cli/internal/project"
+	"github.com/beamlabco/faro-helm-cli/internal/standup"
 )
 
 // StandupSubmitModel represents the standup submission form

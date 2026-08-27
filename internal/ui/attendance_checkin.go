@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/beamlabco/faro-helm/internal/attendance"
+	"github.com/beamlabco/faro-helm-cli/internal/attendance"
 )
 
 // AttendanceCheckInModel represents the check-in form
@@ -193,8 +193,8 @@ func (m *AttendanceCheckInModel) handleSubmit() tea.Cmd {
 			return checkInErrorMsg(err.Error())
 		}
 		t := ""
-		if resp.CheckinTime != nil {
-			t = utcTimeToLocal(*resp.CheckinTime)
+		if resp.CheckinAt != nil {
+			t = utcTimeToLocal(*resp.CheckinAt)
 		}
 		return checkInSuccessMsg{status: status, time: t}
 	}

@@ -1,4 +1,4 @@
-module github.com/beamlabco/faro-helm
+module github.com/beamlabco/faro-helm-cli
 
 go 1.22
 

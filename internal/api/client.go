@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-resty/resty/v2"
-	"github.com/beamlabco/faro-helm/internal/config"
+	"github.com/beamlabco/faro-helm-cli/internal/config"
 )
 
 // Client is the API client for Faro Helm backend

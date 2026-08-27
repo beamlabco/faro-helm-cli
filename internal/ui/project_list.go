@@ -6,8 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/beamlabco/faro-helm/internal/api"
-	"github.com/beamlabco/faro-helm/internal/project"
+	"github.com/beamlabco/faro-helm-cli/internal/api"
+	"github.com/beamlabco/faro-helm-cli/internal/project"
 )
 
 // ProjectListModel displays the user's projects
@@ -86,22 +86,8 @@ func (m ProjectListModel) View() string {
 
 			b.WriteString(fmt.Sprintf("  %d. %s", i+1, nameStyle.Render(p.Name)))
 
-			var details []string
-			if p.SummaryEnabled {
-				details = append(details, "summary: on")
-			}
-			if p.SummaryTime != nil {
-				details = append(details, fmt.Sprintf("time: %s", *p.SummaryTime))
-			}
 			if p.Timezone != nil {
-				details = append(details, fmt.Sprintf("tz: %s", *p.Timezone))
-			}
-			if p.DiscordWebhookURL != nil {
-				details = append(details, "discord: configured")
-			}
-
-			if len(details) > 0 {
-				b.WriteString(dimStyle.Render(fmt.Sprintf(" (%s)", strings.Join(details, ", "))))
+				b.WriteString(dimStyle.Render(fmt.Sprintf(" (tz: %s)", *p.Timezone)))
 			}
 			b.WriteString("\n")
 		}

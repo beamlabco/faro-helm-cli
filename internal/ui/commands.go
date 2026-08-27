@@ -32,38 +32,28 @@ func NewCommandRegistry() *CommandRegistry {
 
 			// Standups
 			{Name: "standup", Aliases: nil, Description: "Submit your daily standup", Category: "standup", RequiresAuth: true},
-			{Name: "standup today", Aliases: nil, Description: "View team standups for today", Category: "standup", RequiresAuth: true},
+			{Name: "standup today", Aliases: nil, Description: "View your standup for today", Category: "standup", RequiresAuth: true},
 			{Name: "standup history", Aliases: []string{"standup my"}, Description: "View your standup history", Category: "standup", RequiresAuth: true},
 
 			// Attendance
 			{Name: "checkin", Aliases: []string{"in"}, Description: "Check in for the day", Category: "attendance", RequiresAuth: true},
 			{Name: "checkout", Aliases: []string{"out"}, Description: "Check out for the day", Category: "attendance", RequiresAuth: true},
-			{Name: "attendance", Aliases: []string{"attend"}, Description: "Mark your attendance", Category: "attendance", RequiresAuth: true},
-			{Name: "attendance today", Aliases: nil, Description: "View team attendance for today", Category: "attendance", RequiresAuth: true},
+			{Name: "attendance today", Aliases: nil, Description: "View your attendance for today", Category: "attendance", RequiresAuth: true},
 			{Name: "attendance history", Aliases: []string{"attendance my"}, Description: "View your attendance history", Category: "attendance", RequiresAuth: true},
 
 			// Leaves
 			{Name: "leave", Aliases: nil, Description: "Request a leave", Category: "leave", RequiresAuth: true},
 			{Name: "leave list", Aliases: []string{"leaves"}, Description: "View team leaves", Category: "leave", RequiresAuth: true},
-			{Name: "leave review", Aliases: nil, Description: "Review pending leaves", Category: "leave", RequiresAuth: true, RequiresRole: "primary"},
 			{Name: "leave cancel", Aliases: nil, Description: "Cancel a pending leave", Category: "leave", RequiresAuth: true},
 
 			// Projects
 			{Name: "project", Aliases: []string{"projects"}, Description: "View your projects", Category: "project", RequiresAuth: true},
-			{Name: "project create", Aliases: nil, Description: "Create a new project", Category: "project", RequiresAuth: true, RequiresRole: "primary"},
-			{Name: "project settings", Aliases: nil, Description: "Configure project settings", Category: "project", RequiresAuth: true, RequiresRole: "primary"},
-			{Name: "project members", Aliases: nil, Description: "Manage project members", Category: "project", RequiresAuth: true, RequiresRole: "primary"},
 
-			// Team management
-			{Name: "team", Aliases: []string{"members"}, Description: "View team members and roles", Category: "admin", RequiresAuth: true},
-			{Name: "role", Aliases: nil, Description: "Update a user's role", Category: "admin", RequiresAuth: true, RequiresRole: "primary"},
-			{Name: "office-hours", Aliases: nil, Description: "Set a member's office start time", Category: "admin", RequiresAuth: true, RequiresRole: "primary"},
-			{Name: "invite", Aliases: nil, Description: "Invite a team member", Category: "admin", RequiresAuth: true, RequiresRole: "primary"},
-			{Name: "settings", Aliases: nil, Description: "Configure organization settings", Category: "admin", RequiresAuth: true, RequiresRole: "primary"},
+			// Team
+			{Name: "team", Aliases: []string{"members"}, Description: "View team members and roles", Category: "team", RequiresAuth: true},
 
 			// Account
 			{Name: "password", Aliases: []string{"change-password"}, Description: "Change your password", Category: "account", RequiresAuth: true},
-			{Name: "reset-password", Aliases: nil, Description: "Reset a member's password", Category: "account", RequiresAuth: true, RequiresRole: "primary"},
 
 			// Utility
 			{Name: "help", Aliases: []string{"?"}, Description: "Show available commands", Category: "utility", RequiresAuth: false},

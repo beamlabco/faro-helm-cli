@@ -1,7 +1,7 @@
 # faro-helm-cli
 
 Go CLI for **Faro Helm** — the `faro` binary. Built with Bubble Tea (TUI).
-Talks to `faro-helm-api` over REST.
+Talks to `faro-helm-api` and `faro-auth-api` over REST. All endpoints use the `/api/v1/` prefix.
 
 ## Binary
 
@@ -13,16 +13,25 @@ faro leave list
 ```
 
 Config stored at `~/.faro-helm/config.yaml`.
-API URL set via build-time ldflags or `FARO_HELM_API_URL` env var.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `FARO_HELM_API_URL` | `http://localhost:3001` | Helm API base URL (overrides build-time ldflag) |
+| `FARO_AUTH_API_URL` | `http://localhost:3000` | Auth API base URL (overrides build-time ldflag) |
+
+Auth calls go to `{authBaseURL}/api/v1/auth/*`, helm calls go to `{baseURL}/api/v1/*`.
 
 ## Commands
 
 ```bash
-make build        # build ./bin/faro (dev → localhost:3001)
-make build-prod   # build (→ api.helm.farohelm.com)
-make run          # go run (dev)
-make install      # copy to /usr/local/bin/faro
-make build-all    # cross-platform binaries
+make build         # build ./bin/faro (dev → localhost:3001)
+make build-staging # build (→ helm-faro.beamlab.dev)
+make build-prod    # build (→ api.helm.farohelm.com)
+make run           # go run (dev)
+make run-staging   # go run (staging)
+make run-prod      # go run (production)
+make install       # copy to /usr/local/bin/faro (production build)
+make build-all     # cross-platform production binaries
 go test ./...
 go fmt ./...
 ```
@@ -36,12 +45,10 @@ internal/
 ├── api/                HTTP client (resty) for all API calls
 ├── auth/               login, logout, register, join
 ├── standup/            submit, list, history
-├── attendance/         mark, checkin, checkout, history
-├── leave/              request, list, review, cancel
-├── project/            list, create, settings, members
-├── invitation/         create, accept
-├── organization/       get/update settings
-├── user/               list, role, office hours, password
+├── attendance/         checkin, checkout, today, history
+├── leave/              request (leave types + quota lookup), list, cancel
+├── project/            list (own projects)
+├── user/               team list, password
 └── ui/                 Bubble Tea screens + styles
     ├── shell.go        main REPL shell + dashboard
     ├── styles.go       teal color palette (#1D9E75 primary, #5DCAA5 secondary)
@@ -49,23 +56,27 @@ internal/
     └── *.go            one file per screen
 ```
 
+This is a **member/self-service CLI only** — the same scope as `faro-helm-app`. It exposes no primary/manager administration (org settings, invitations, role changes, project CRUD, project membership, office-hours overrides, password resets, or leave review). Those remain server-side in `faro-helm-api` for other clients; this binary simply doesn't expose them.
+
 ## Module
 
 `github.com/beamlabco/faro-helm`
 
 ## CLI Commands
 
-### All users
+All commands are available to every authenticated user — there is no role-gated
+admin/manager tier in this CLI.
+
 `standup`, `standup today`, `standup history`, `checkin`, `checkout`,
-`attendance`, `attendance today`, `attendance history`, `leave`, `leave list`,
+`attendance today`, `attendance history`, `leave`, `leave list`,
 `leave cancel`, `project`, `team`, `password`, `whoami`, `help`, `clear`, `quit`
 
-### Primary only
-`project create`, `project settings`, `project members`, `role`, `office-hours`,
-`invite`, `settings`, `reset-password`
+There is no standalone `attendance` (mark) command — `checkin`/`checkout` are the only
+way to record attendance; `faro-helm-api` dropped the generic mark-attendance endpoint.
 
-### Primary + Manager
-`leave review`
+`leave` (request) fetches the workspace's active leave types and the caller's quota/used/
+remaining for each via `GET /leaves/balance` before prompting for dates — leave types are
+workspace-configurable, not a fixed enum, so the type picker is always live-loaded.
 
 ## TUI colors (teal palette)
 

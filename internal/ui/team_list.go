@@ -6,8 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/beamlabco/faro-helm/internal/api"
-	"github.com/beamlabco/faro-helm/internal/user"
+	"github.com/beamlabco/faro-helm-cli/internal/api"
+	"github.com/beamlabco/faro-helm-cli/internal/user"
 )
 
 // TeamListModel represents the team members list view

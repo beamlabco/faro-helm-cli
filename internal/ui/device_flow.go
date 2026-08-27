@@ -7,7 +7,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/beamlabco/faro-helm/internal/auth"
+	"github.com/beamlabco/faro-helm-cli/internal/api"
+	"github.com/beamlabco/faro-helm-cli/internal/auth"
 )
 
 // DeviceFlowModel handles the OAuth device flow login screen.
@@ -58,8 +59,8 @@ type deviceFlowInitMsg struct {
 type deviceFlowInitErrMsg string
 
 type deviceFlowPollMsg struct {
-	token string
-	err   error
+	tokenPair *api.DeviceTokenPair
+	err       error
 }
 
 type deviceFlowTickMsg struct{}
@@ -118,7 +119,7 @@ func (m DeviceFlowModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// Success — save auth data
-		if err := m.authService.CompleteDeviceLogin(msg.token); err != nil {
+		if err := m.authService.CompleteDeviceLogin(msg.tokenPair); err != nil {
 			m.phase = "error"
 			m.errorMsg = fmt.Sprintf("Login failed: %s", err.Error())
 			return m, nil
@@ -219,8 +220,8 @@ func (m *DeviceFlowModel) schedulePoll() tea.Cmd {
 func (m *DeviceFlowModel) poll() tea.Cmd {
 	deviceCode := m.deviceCode
 	return func() tea.Msg {
-		token, err := m.authService.PollDeviceToken(deviceCode)
-		return deviceFlowPollMsg{token: token, err: err}
+		tokenPair, err := m.authService.PollDeviceToken(deviceCode)
+		return deviceFlowPollMsg{tokenPair: tokenPair, err: err}
 	}
 }
 

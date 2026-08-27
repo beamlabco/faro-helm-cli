@@ -1,14 +1,17 @@
-.PHONY: build run install clean test lint help
+.PHONY: build build-staging build-prod run run-staging run-prod install clean test fmt lint build-all help
 
 BINARY_NAME=faro
 BUILD_DIR=bin
 
 DEV_API_URL=http://localhost:3001
+STAGING_API_URL=http://helm-faro.beamlab.dev
 PROD_API_URL=https://api.helm.farohelm.com
 DEV_AUTH_URL=http://localhost:3000
+STAGING_AUTH_URL=https://auth-faro.beamlab.dev
 PROD_AUTH_URL=https://auth.farohelm.com
 
 LDFLAGS_DEV=-ldflags "-X main.defaultBaseURL=$(DEV_API_URL) -X main.defaultAuthBaseURL=$(DEV_AUTH_URL)"
+LDFLAGS_STAGING=-ldflags "-X main.defaultBaseURL=$(STAGING_API_URL) -X main.defaultAuthBaseURL=$(STAGING_AUTH_URL)"
 LDFLAGS_PROD=-ldflags "-X main.defaultBaseURL=$(PROD_API_URL) -X main.defaultAuthBaseURL=$(PROD_AUTH_URL)"
 
 build:
@@ -16,6 +19,12 @@ build:
 	@mkdir -p $(BUILD_DIR)
 	go build $(LDFLAGS_DEV) -o $(BUILD_DIR)/$(BINARY_NAME) cmd/faro/main.go
 	@echo "✓ $(BUILD_DIR)/$(BINARY_NAME) → $(DEV_API_URL)"
+
+build-staging:
+	@echo "Building $(BINARY_NAME) (staging)..."
+	@mkdir -p $(BUILD_DIR)
+	go build $(LDFLAGS_STAGING) -o $(BUILD_DIR)/$(BINARY_NAME) cmd/faro/main.go
+	@echo "✓ $(BUILD_DIR)/$(BINARY_NAME) → $(STAGING_API_URL)"
 
 build-prod:
 	@echo "Building $(BINARY_NAME) (production)..."
@@ -25,6 +34,12 @@ build-prod:
 
 run:
 	go run $(LDFLAGS_DEV) cmd/faro/main.go
+
+run-staging:
+	go run $(LDFLAGS_STAGING) cmd/faro/main.go
+
+run-prod:
+	go run $(LDFLAGS_PROD) cmd/faro/main.go
 
 install: build-prod
 	cp $(BUILD_DIR)/$(BINARY_NAME) /usr/local/bin/$(BINARY_NAME)
@@ -55,8 +70,11 @@ build-all:
 help:
 	@echo "Faro Helm CLI — Makefile commands:"
 	@echo "  make build         Build (dev → localhost:3001)"
+	@echo "  make build-staging Build (staging → helm-faro.beamlab.dev)"
 	@echo "  make build-prod    Build (production)"
 	@echo "  make run           Run directly (dev)"
+	@echo "  make run-staging   Run directly (staging)"
+	@echo "  make run-prod      Run directly (production)"
 	@echo "  make install       Install to /usr/local/bin"
 	@echo "  make build-all     Cross-platform production builds"
 	@echo "  make test          Run tests"

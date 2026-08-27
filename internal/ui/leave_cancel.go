@@ -6,8 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/beamlabco/faro-helm/internal/api"
-	"github.com/beamlabco/faro-helm/internal/leave"
+	"github.com/beamlabco/faro-helm-cli/internal/api"
+	"github.com/beamlabco/faro-helm-cli/internal/leave"
 )
 
 // LeaveCancelModel represents the leave cancellation view (user's own pending leaves)
@@ -131,8 +131,13 @@ func (m LeaveCancelModel) View() string {
 				typeStyle = lipgloss.NewStyle().Foreground(secondaryColor)
 			}
 
+			typeName := "Unknown"
+			if l.Type != nil {
+				typeName = l.Type.Name
+			}
+
 			b.WriteString(prefix)
-			b.WriteString(typeStyle.Render(fmt.Sprintf("%s %s", getLeaveTypeIcon(l.Type), l.Type)))
+			b.WriteString(typeStyle.Render(fmt.Sprintf("%s %s", getLeaveTypeIcon(typeName), typeName)))
 			b.WriteString("  ")
 
 			dateStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF"))

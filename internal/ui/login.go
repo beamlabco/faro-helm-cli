@@ -6,7 +6,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/beamlabco/faro-helm/internal/auth"
+	"github.com/beamlabco/faro-helm-cli/internal/auth"
 )
 
 // LoginModel represents the login screen

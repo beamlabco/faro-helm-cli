@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/beamlabco/faro-helm/internal/api"
-	"github.com/beamlabco/faro-helm/internal/config"
+	"github.com/beamlabco/faro-helm-cli/internal/api"
+	"github.com/beamlabco/faro-helm-cli/internal/config"
 )
 
 // Service handles authentication operations
@@ -24,9 +24,9 @@ func NewService(client *api.Client, authClient *api.AuthClient, cfg *config.Conf
 	}
 }
 
-// Register creates a new user and organization
+// Register creates a new account and workspace on auth-api.
+// No token is returned — the user must verify their email then run /login.
 func (s *Service) Register(email, password, name, organizationName string) error {
-	// Validate inputs
 	if err := validateEmail(email); err != nil {
 		return err
 	}
@@ -40,37 +40,15 @@ func (s *Service) Register(email, password, name, organizationName string) error
 		return err
 	}
 
-	// Call API
-	req := &api.RegisterRequest{
+	return s.authClient.Register(&api.AuthRegisterRequest{
 		Email:            email,
 		Password:         password,
 		Name:             name,
 		OrganizationName: organizationName,
-	}
-
-	resp, err := s.client.Register(req)
-	if err != nil {
-		return fmt.Errorf("registration failed: %w", err)
-	}
-
-	// Save to config
-	s.config.SetAuthData(
-		resp.Token,
-		resp.User.ToConfigUser(),
-		resp.Organization.ToConfigOrganization(),
-	)
-
-	if err := config.Save(s.config); err != nil {
-		return fmt.Errorf("failed to save config: %w", err)
-	}
-
-	// Update client token
-	s.client.SetToken(resp.Token)
-
-	return nil
+	})
 }
 
-// Join registers a user via an invitation token
+// Join accepts a workspace invitation and logs the user in immediately.
 func (s *Service) Join(email, password, name, token string) error {
 	if err := validateEmail(email); err != nil {
 		return err
@@ -86,36 +64,39 @@ func (s *Service) Join(email, password, name, token string) error {
 		return fmt.Errorf("invitation token is required")
 	}
 
-	req := &api.RegisterRequest{
+	resp, err := s.authClient.AcceptInvitation(&api.AcceptInvitationRequest{
 		Email:    email,
 		Password: password,
 		Name:     name,
 		Token:    token,
-	}
-
-	resp, err := s.client.Register(req)
+	})
 	if err != nil {
 		return fmt.Errorf("join failed: %w", err)
 	}
 
-	s.config.SetAuthData(
-		resp.Token,
-		resp.User.ToConfigUser(),
-		resp.Organization.ToConfigOrganization(),
-	)
+	user := &config.User{
+		ID:        resp.Member.ID,
+		AccountID: resp.Account.ID,
+		Email:     resp.Account.Email,
+		Name:      resp.Account.Name,
+		Role:      resp.Member.Role,
+	}
+	org := &config.Organization{
+		ID:     resp.Workspace.ID,
+		Name:   resp.Workspace.Name,
+		Status: resp.Workspace.Status,
+	}
 
+	s.config.SetAuthData(resp.AccessToken, resp.RefreshToken, user, org)
 	if err := config.Save(s.config); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
-
-	s.client.SetToken(resp.Token)
-
+	s.client.SetToken(resp.AccessToken)
 	return nil
 }
 
-// Login authenticates a user
+// Login authenticates via auth-api and stores the session.
 func (s *Service) Login(email, password string) error {
-	// Validate inputs
 	if err := validateEmail(email); err != nil {
 		return err
 	}
@@ -123,31 +104,38 @@ func (s *Service) Login(email, password string) error {
 		return fmt.Errorf("password is required")
 	}
 
-	// Call API
-	req := &api.LoginRequest{
-		Email:    email,
-		Password: password,
-	}
-
-	resp, err := s.client.Login(req)
+	resp, err := s.authClient.Login(&api.AuthLoginRequest{Email: email, Password: password})
 	if err != nil {
 		return fmt.Errorf("login failed: %w", err)
 	}
 
-	// Save to config
-	s.config.SetAuthData(
-		resp.Token,
-		resp.User.ToConfigUser(),
-		resp.Organization.ToConfigOrganization(),
-	)
+	me, err := s.authClient.GetMe(resp.AccessToken)
+	if err != nil {
+		return fmt.Errorf("failed to fetch account info: %w", err)
+	}
+	if len(me.Workspaces) == 0 {
+		return fmt.Errorf("account has no workspaces — register or join an organisation first")
+	}
 
+	ws := me.Workspaces[0]
+	user := &config.User{
+		ID:        ws.MemberID,
+		AccountID: resp.Account.ID,
+		Email:     resp.Account.Email,
+		Name:      resp.Account.Name,
+		Role:      ws.Role,
+	}
+	org := &config.Organization{
+		ID:     ws.WorkspaceID,
+		Name:   ws.Name,
+		Status: "active",
+	}
+
+	s.config.SetAuthData(resp.AccessToken, resp.RefreshToken, user, org)
 	if err := config.Save(s.config); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
-
-	// Update client token
-	s.client.SetToken(resp.Token)
-
+	s.client.SetToken(resp.AccessToken)
 	return nil
 }
 
@@ -201,16 +189,13 @@ func (s *Service) StartDeviceFlow() (*DeviceFlowInfo, error) {
 }
 
 // PollDeviceToken polls once for a completed device authorization.
-// Returns the access token on success, or an error whose message is the
-// OAuth error code ("authorization_pending", "slow_down", "expired_token", "access_denied").
-func (s *Service) PollDeviceToken(deviceCode string) (string, error) {
+func (s *Service) PollDeviceToken(deviceCode string) (*api.DeviceTokenPair, error) {
 	return s.authClient.PollDeviceToken(deviceCode)
 }
 
 // CompleteDeviceLogin saves auth data after a successful device flow poll.
-// It fetches /auth/me to get account + workspace info, then saves to config.
-func (s *Service) CompleteDeviceLogin(token string) error {
-	me, err := s.authClient.GetMe(token)
+func (s *Service) CompleteDeviceLogin(tokenPair *api.DeviceTokenPair) error {
+	me, err := s.authClient.GetMe(tokenPair.AccessToken)
 	if err != nil {
 		return fmt.Errorf("failed to fetch account info: %w", err)
 	}
@@ -219,9 +204,7 @@ func (s *Service) CompleteDeviceLogin(token string) error {
 		return fmt.Errorf("account has no workspaces — register or join an organisation first")
 	}
 
-	// Use the first workspace (primary if multiple — picker can be added later).
 	ws := me.Workspaces[0]
-
 	user := &config.User{
 		ID:        ws.MemberID,
 		AccountID: me.Account.ID,
@@ -235,24 +218,23 @@ func (s *Service) CompleteDeviceLogin(token string) error {
 		Status: "active",
 	}
 
-	s.config.SetAuthData(token, user, org)
+	s.config.SetAuthData(tokenPair.AccessToken, tokenPair.RefreshToken, user, org)
 	if err := config.Save(s.config); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	s.client.SetToken(token)
+	s.client.SetToken(tokenPair.AccessToken)
 	return nil
 }
 
 // Validation functions
 
 func validateEmail(email string) error {
-	email = strings.TrimSpace(email)
 	if email == "" {
 		return fmt.Errorf("email is required")
 	}
 	if !strings.Contains(email, "@") {
-		return fmt.Errorf("invalid email format")
+		return fmt.Errorf("invalid email address")
 	}
 	return nil
 }
@@ -269,19 +251,13 @@ func validateName(name string) error {
 	if len(name) < 2 {
 		return fmt.Errorf("name must be at least 2 characters")
 	}
-	if len(name) > 255 {
-		return fmt.Errorf("name must be less than 255 characters")
-	}
 	return nil
 }
 
 func validateOrganizationName(name string) error {
 	name = strings.TrimSpace(name)
 	if len(name) < 2 {
-		return fmt.Errorf("organization name must be at least 2 characters")
-	}
-	if len(name) > 255 {
-		return fmt.Errorf("organization name must be less than 255 characters")
+		return fmt.Errorf("organisation name must be at least 2 characters")
 	}
 	return nil
 }

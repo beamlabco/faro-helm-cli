@@ -66,3 +66,15 @@ var (
 				Padding(0, 3).
 				MarginTop(1)
 )
+
+// getRoleBadgeStyle returns a style for rendering a member's role badge
+func getRoleBadgeStyle(role string) lipgloss.Style {
+	switch role {
+	case "primary":
+		return lipgloss.NewStyle().Foreground(errorColor).Bold(true)
+	case "manager":
+		return lipgloss.NewStyle().Foreground(secondaryColor)
+	default:
+		return lipgloss.NewStyle().Foreground(mutedColor)
+	}
+}

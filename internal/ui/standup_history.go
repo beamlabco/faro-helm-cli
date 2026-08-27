@@ -6,15 +6,15 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/beamlabco/faro-helm/internal/api"
-	"github.com/beamlabco/faro-helm/internal/standup"
+	"github.com/beamlabco/faro-helm-cli/internal/api"
+	"github.com/beamlabco/faro-helm-cli/internal/standup"
 )
 
 // StandupHistoryModel represents the my standups history view
 type StandupHistoryModel struct {
 	standupService *standup.Service
 	standups       []*api.StandupResponse
-	pagination     *api.Pagination
+	total          int
 	errorMsg       string
 	loading        bool
 	shouldGoBack   bool
@@ -56,7 +56,7 @@ func (m StandupHistoryModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case standupHistorySuccessMsg:
 		m.loading = false
 		m.standups = msg.standups
-		m.pagination = msg.pagination
+		m.total = msg.total
 		return m, nil
 
 	case standupHistoryErrorMsg:
@@ -142,11 +142,11 @@ func (m StandupHistoryModel) View() string {
 		}
 
 		// Pagination info
-		if m.pagination != nil {
+		if m.total > 0 {
 			b.WriteString("\n")
 			b.WriteString(lipgloss.NewStyle().
 				Foreground(mutedColor).
-				Render(fmt.Sprintf("Showing %d of %d standups", len(m.standups), m.pagination.Total)))
+				Render(fmt.Sprintf("Showing %d of %d standups", len(m.standups), m.total)))
 			b.WriteString("\n")
 		}
 	}
@@ -163,20 +163,17 @@ func (m StandupHistoryModel) View() string {
 // fetchStandups fetches the user's standup history
 func (m *StandupHistoryModel) fetchStandups() tea.Cmd {
 	return func() tea.Msg {
-		standups, pagination, err := m.standupService.GetMy(10, 0)
+		standups, total, err := m.standupService.GetMy(10, 0)
 		if err != nil {
 			return standupHistoryErrorMsg(err.Error())
 		}
-		return standupHistorySuccessMsg{
-			standups:   standups,
-			pagination: pagination,
-		}
+		return standupHistorySuccessMsg{standups: standups, total: total}
 	}
 }
 
 // Message types
 type standupHistorySuccessMsg struct {
-	standups   []*api.StandupResponse
-	pagination *api.Pagination
+	standups []*api.StandupResponse
+	total    int
 }
 type standupHistoryErrorMsg string

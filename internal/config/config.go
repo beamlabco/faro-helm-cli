@@ -31,7 +31,8 @@ type Organization struct {
 }
 
 type Auth struct {
-	Token string `mapstructure:"token"`
+	Token        string `mapstructure:"token"`
+	RefreshToken string `mapstructure:"refresh_token"`
 }
 
 type API struct {
@@ -130,8 +131,8 @@ func (c *Config) Clear() {
 	c.Auth = nil
 }
 
-func (c *Config) SetAuthData(token string, user *User, org *Organization) {
-	c.Auth = &Auth{Token: token}
+func (c *Config) SetAuthData(accessToken, refreshToken string, user *User, org *Organization) {
+	c.Auth = &Auth{Token: accessToken, RefreshToken: refreshToken}
 	c.User = user
 	c.Organization = org
 }

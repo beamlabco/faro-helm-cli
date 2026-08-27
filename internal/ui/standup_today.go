@@ -1,20 +1,18 @@
 package ui
 
 import (
-	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/beamlabco/faro-helm/internal/api"
-	"github.com/beamlabco/faro-helm/internal/standup"
+	"github.com/beamlabco/faro-helm-cli/internal/api"
+	"github.com/beamlabco/faro-helm-cli/internal/standup"
 )
 
-// StandupTodayModel represents the today's standups view
+// StandupTodayModel represents the current user's today's standups view
 type StandupTodayModel struct {
 	standupService *standup.Service
 	standups       []*api.StandupResponse
-	date           string
 	errorMsg       string
 	loading        bool
 	shouldGoBack   bool
@@ -56,7 +54,6 @@ func (m StandupTodayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case standupTodaySuccessMsg:
 		m.loading = false
 		m.standups = msg.standups
-		m.date = msg.date
 		return m, nil
 
 	case standupTodayErrorMsg:
@@ -70,92 +67,59 @@ func (m StandupTodayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the today's standups view
 func (m StandupTodayModel) View() string {
-
 	var b strings.Builder
 
-	// Title
-	b.WriteString(titleStyle.Render(fmt.Sprintf("👥 Team Standups - %s", m.date)))
+	b.WriteString(titleStyle.Render("Your Standup Today"))
 	b.WriteString("\n\n")
 
-	// Loading indicator
 	if m.loading {
-		b.WriteString(lipgloss.NewStyle().Foreground(mutedColor).Render("⏳ Loading standups..."))
+		b.WriteString(lipgloss.NewStyle().Foreground(mutedColor).Render("Loading standup..."))
 		b.WriteString("\n")
 	} else if m.errorMsg != "" {
-		// Error message
-		b.WriteString(errorStyle.Render("❌ " + m.errorMsg))
+		b.WriteString(errorStyle.Render("Error: " + m.errorMsg))
 		b.WriteString("\n")
 	} else if len(m.standups) == 0 {
-		// No standups
-		b.WriteString(lipgloss.NewStyle().
-			Foreground(mutedColor).
-			Render("No standups submitted yet today"))
+		b.WriteString(lipgloss.NewStyle().Foreground(mutedColor).Render("You haven't submitted a standup today."))
+		b.WriteString("\n")
+		b.WriteString(lipgloss.NewStyle().Foreground(mutedColor).Render("Use /standup to submit it."))
 		b.WriteString("\n")
 	} else {
-		// Display standups
-		for i, standup := range m.standups {
+		for i, s := range m.standups {
 			if i > 0 {
 				b.WriteString("\n")
-				b.WriteString(lipgloss.NewStyle().
-					Foreground(mutedColor).
-					Render(strings.Repeat("─", 60)))
+				b.WriteString(lipgloss.NewStyle().Foreground(mutedColor).Render(strings.Repeat("─", 60)))
 				b.WriteString("\n\n")
 			}
 
-			// User name
-			userName := "Unknown"
-			userRole := ""
-			if standup.User != nil {
-				userName = standup.User.Name
-				userRole = standup.User.Role
+			if s.Project != nil {
+				projectStyle := lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+				b.WriteString(projectStyle.Render(s.Project.Name))
+				b.WriteString("\n\n")
 			}
 
-			nameStyle := lipgloss.NewStyle().
-				Bold(true).
-				Foreground(primaryColor)
-
-			roleStyle := lipgloss.NewStyle().
-				Foreground(mutedColor).
-				Italic(true)
-
-			b.WriteString(nameStyle.Render(userName))
-			b.WriteString(" ")
-			b.WriteString(roleStyle.Render(fmt.Sprintf("(%s)", userRole)))
-			b.WriteString("\n\n")
-
-			// Yesterday
-			if standup.Yesterday != nil && *standup.Yesterday != "" {
+			if s.Yesterday != nil && *s.Yesterday != "" {
 				b.WriteString(labelStyle.Render("Yesterday:"))
 				b.WriteString("\n")
-				b.WriteString(lipgloss.NewStyle().
-					Foreground(lipgloss.Color("#FFFFFF")).
-					Render(*standup.Yesterday))
+				b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")).Render(*s.Yesterday))
 				b.WriteString("\n\n")
 			}
 
-			// Today
-			if standup.Today != nil && *standup.Today != "" {
+			if s.Today != nil && *s.Today != "" {
 				b.WriteString(labelStyle.Render("Today:"))
 				b.WriteString("\n")
-				b.WriteString(lipgloss.NewStyle().
-					Foreground(lipgloss.Color("#FFFFFF")).
-					Render(*standup.Today))
+				b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")).Render(*s.Today))
 				b.WriteString("\n\n")
 			}
 
-			// Blockers
-			if standup.Blockers != nil && *standup.Blockers != "" {
+			if s.Blockers != nil && *s.Blockers != "" {
 				b.WriteString(labelStyle.Render("Blockers:"))
 				b.WriteString("\n")
-				b.WriteString(lipgloss.NewStyle().
-					Foreground(errorColor).
-					Render(*standup.Blockers))
+				b.WriteString(lipgloss.NewStyle().Foreground(errorColor).Render(*s.Blockers))
 				b.WriteString("\n")
 			}
 		}
 	}
 
-	// Help text
 	b.WriteString("\n")
 	if !m.loading {
 		b.WriteString(helpStyle.Render("r: refresh • esc: back"))
@@ -164,23 +128,19 @@ func (m StandupTodayModel) View() string {
 	return baseStyle.Render(b.String())
 }
 
-// fetchStandups fetches today's standups
+// fetchStandups fetches the current user's standups for today
 func (m *StandupTodayModel) fetchStandups() tea.Cmd {
 	return func() tea.Msg {
-		standups, date, err := m.standupService.GetToday()
+		standups, err := m.standupService.GetToday()
 		if err != nil {
 			return standupTodayErrorMsg(err.Error())
 		}
-		return standupTodaySuccessMsg{
-			standups: standups,
-			date:     date,
-		}
+		return standupTodaySuccessMsg{standups: standups}
 	}
 }
 
 // Message types
 type standupTodaySuccessMsg struct {
 	standups []*api.StandupResponse
-	date     string
 }
 type standupTodayErrorMsg string

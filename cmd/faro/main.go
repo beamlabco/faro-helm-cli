@@ -5,17 +5,15 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/beamlabco/faro-helm/internal/api"
-	"github.com/beamlabco/faro-helm/internal/attendance"
-	"github.com/beamlabco/faro-helm/internal/auth"
-	"github.com/beamlabco/faro-helm/internal/config"
-	"github.com/beamlabco/faro-helm/internal/invitation"
-	"github.com/beamlabco/faro-helm/internal/leave"
-	"github.com/beamlabco/faro-helm/internal/organization"
-	"github.com/beamlabco/faro-helm/internal/project"
-	"github.com/beamlabco/faro-helm/internal/standup"
-	"github.com/beamlabco/faro-helm/internal/user"
-	"github.com/beamlabco/faro-helm/internal/ui"
+	"github.com/beamlabco/faro-helm-cli/internal/api"
+	"github.com/beamlabco/faro-helm-cli/internal/attendance"
+	"github.com/beamlabco/faro-helm-cli/internal/auth"
+	"github.com/beamlabco/faro-helm-cli/internal/config"
+	"github.com/beamlabco/faro-helm-cli/internal/leave"
+	"github.com/beamlabco/faro-helm-cli/internal/project"
+	"github.com/beamlabco/faro-helm-cli/internal/standup"
+	"github.com/beamlabco/faro-helm-cli/internal/user"
+	"github.com/beamlabco/faro-helm-cli/internal/ui"
 )
 
 var (
@@ -46,15 +44,18 @@ func main() {
 	authService := auth.NewService(apiClient, authAPIClient, cfg)
 	standupService := standup.NewService(apiClient)
 	attendanceService := attendance.NewService(apiClient)
-	invitationService := invitation.NewService(apiClient)
 	leaveService := leave.NewService(apiClient)
-	userService := user.NewService(apiClient)
-	orgService := organization.NewService(apiClient)
+	userService := user.NewService(apiClient, authAPIClient, func() string {
+		if cfg.Auth == nil {
+			return ""
+		}
+		return cfg.Auth.Token
+	})
 	projectService := project.NewService(apiClient)
 
 	ui.PrintLogo()
 
-	shellModel := ui.NewShellModel(authService, standupService, attendanceService, invitationService, leaveService, userService, orgService, projectService, cfg)
+	shellModel := ui.NewShellModel(authService, standupService, attendanceService, leaveService, userService, projectService, cfg)
 	p := tea.NewProgram(shellModel, tea.WithAltScreen())
 
 	if _, err := p.Run(); err != nil {

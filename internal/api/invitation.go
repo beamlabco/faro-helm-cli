@@ -1,45 +1,45 @@
 package api
 
-import "time"
-
-// CreateInvitationRequest represents the create invitation request
-type CreateInvitationRequest struct {
-	Email string `json:"email"`
+// AcceptInvitationRequest is the body for POST /auth/invitations/accept.
+type AcceptInvitationRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+	Name     string `json:"name"`
+	Token    string `json:"token"`
 }
 
-// InvitationResponse represents an invitation in API response
-type InvitationResponse struct {
-	ID             int       `json:"id"`
-	Email          string    `json:"email"`
-	OrganizationID int       `json:"organizationId"`
-	InvitedBy      int       `json:"invitedBy"`
-	Status         string    `json:"status"`
-	Token          string    `json:"token"`
-	ExpiresAt      time.Time `json:"expiresAt"`
-	CreatedAt      time.Time `json:"createdAt"`
-	UpdatedAt      time.Time `json:"updatedAt"`
+// AcceptInvitationResponse is returned by POST /auth/invitations/accept.
+type AcceptInvitationResponse struct {
+	AccessToken  string `json:"accessToken"`
+	RefreshToken string `json:"refreshToken"`
+	Account      struct {
+		ID    string `json:"id"`
+		Email string `json:"email"`
+		Name  string `json:"name"`
+	} `json:"account"`
+	Workspace struct {
+		ID     string `json:"id"`
+		Name   string `json:"name"`
+		Status string `json:"status"`
+	} `json:"workspace"`
+	Member struct {
+		ID   string `json:"id"`
+		Role string `json:"role"`
+	} `json:"member"`
 }
 
-// CreateInvitationResponse wraps the invitation response
-type CreateInvitationResponse struct {
-	Invitation *InvitationResponse `json:"invitation"`
-}
-
-// CreateInvitation creates an invitation to join the organization
-func (c *Client) CreateInvitation(req *CreateInvitationRequest) (*CreateInvitationResponse, error) {
-	var result CreateInvitationResponse
+// AcceptInvitation joins a workspace via an invitation token.
+func (c *AuthClient) AcceptInvitation(req *AcceptInvitationRequest) (*AcceptInvitationResponse, error) {
+	var result AcceptInvitationResponse
 	resp, err := c.http.R().
 		SetBody(req).
 		SetResult(&result).
-		Post("/api/invitations")
-
+		Post("/api/v1/auth/invitations/accept")
 	if err != nil {
 		return nil, err
 	}
-
 	if resp.IsError() {
 		return nil, parseError(resp)
 	}
-
 	return &result, nil
 }

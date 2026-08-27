@@ -6,8 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/beamlabco/faro-helm/internal/api"
-	"github.com/beamlabco/faro-helm/internal/leave"
+	"github.com/beamlabco/faro-helm-cli/internal/api"
+	"github.com/beamlabco/faro-helm-cli/internal/leave"
 )
 
 // LeaveListModel represents the leave list view
@@ -98,8 +98,12 @@ func (m LeaveListModel) View() string {
 			b.WriteString(nameStyle.Render(userName))
 			b.WriteString("  ")
 
+			typeName := "Unknown"
+			if l.Type != nil {
+				typeName = l.Type.Name
+			}
 			typeStyle := lipgloss.NewStyle().Foreground(secondaryColor)
-			b.WriteString(typeStyle.Render(fmt.Sprintf("%s %s", getLeaveTypeIcon(l.Type), l.Type)))
+			b.WriteString(typeStyle.Render(fmt.Sprintf("%s %s", getLeaveTypeIcon(typeName), typeName)))
 			b.WriteString("\n")
 
 			// Dates
@@ -120,9 +124,9 @@ func (m LeaveListModel) View() string {
 			}
 
 			// Reviewer
-			if l.Reviewer != nil {
+			if l.ReviewedBy != nil {
 				reviewerStyle := lipgloss.NewStyle().Foreground(mutedColor)
-				b.WriteString(reviewerStyle.Render(fmt.Sprintf("  Reviewed by: %s", l.Reviewer.Name)))
+				b.WriteString(reviewerStyle.Render(fmt.Sprintf("  Reviewed by: %s", *l.ReviewedBy)))
 				b.WriteString("\n")
 			}
 		}

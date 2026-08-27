@@ -21,3 +21,19 @@ func utcTimeToLocal(utcTime string) string {
 	local := utcParsed.In(time.Local)
 	return local.Format("15:04:05")
 }
+
+// getStatusIcon returns a short glyph for an attendance status.
+func getStatusIcon(status string) string {
+	switch status {
+	case "present":
+		return "✓"
+	case "remote":
+		return "🏠"
+	case "half-day":
+		return "½"
+	case "absent":
+		return "✗"
+	default:
+		return "•"
+	}
+}

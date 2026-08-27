@@ -7,16 +7,14 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/beamlabco/faro-helm/internal/api"
-	"github.com/beamlabco/faro-helm/internal/attendance"
-	"github.com/beamlabco/faro-helm/internal/auth"
-	"github.com/beamlabco/faro-helm/internal/config"
-	"github.com/beamlabco/faro-helm/internal/invitation"
-	"github.com/beamlabco/faro-helm/internal/leave"
-	"github.com/beamlabco/faro-helm/internal/organization"
-	"github.com/beamlabco/faro-helm/internal/project"
-	"github.com/beamlabco/faro-helm/internal/standup"
-	"github.com/beamlabco/faro-helm/internal/user"
+	"github.com/beamlabco/faro-helm-cli/internal/api"
+	"github.com/beamlabco/faro-helm-cli/internal/attendance"
+	"github.com/beamlabco/faro-helm-cli/internal/auth"
+	"github.com/beamlabco/faro-helm-cli/internal/config"
+	"github.com/beamlabco/faro-helm-cli/internal/leave"
+	"github.com/beamlabco/faro-helm-cli/internal/project"
+	"github.com/beamlabco/faro-helm-cli/internal/standup"
+	"github.com/beamlabco/faro-helm-cli/internal/user"
 )
 
 // View states
@@ -30,27 +28,17 @@ const (
 	viewStandupSubmit
 	viewStandupToday
 	viewStandupHistory
-	viewAttendanceMark
 	viewAttendanceCheckIn
 	viewAttendanceCheckOut
 	viewAttendanceToday
 	viewAttendanceHistory
-	viewInvitationCreate
 	viewJoin
 	viewLeaveRequest
 	viewLeaveList
-	viewLeaveReview
 	viewLeaveCancel
 	viewTeamList
-	viewRoleUpdate
-	viewSettings
 	viewProjectList
-	viewProjectCreate
-	viewProjectSettings
-	viewProjectMembers
 	viewChangePassword
-	viewResetPassword
-	viewMemberOfficeHours
 )
 
 // Dashboard message types
@@ -60,13 +48,8 @@ type dashboardStandupMsg struct {
 }
 
 type dashboardAttendanceMsg struct {
-	resp *api.GetTodayAttendanceResponse
+	resp *api.AttendanceResponse
 	err  error
-}
-
-type dashboardPendingLeavesMsg struct {
-	count int
-	err   error
 }
 
 type dashboardApprovedLeavesMsg struct {
@@ -80,10 +63,8 @@ type ShellModel struct {
 	authService       *auth.Service
 	standupService    *standup.Service
 	attendanceService *attendance.Service
-	invitationService *invitation.Service
 	leaveService      *leave.Service
 	userService       *user.Service
-	orgService        *organization.Service
 	projectService    *project.Service
 	config            *config.Config
 
@@ -101,27 +82,17 @@ type ShellModel struct {
 	standupSubmitModel     StandupSubmitModel
 	standupTodayModel      StandupTodayModel
 	standupHistoryModel    StandupHistoryModel
-	attendanceMarkModel      AttendanceMarkModel
 	attendanceCheckInModel   AttendanceCheckInModel
 	attendanceCheckOutModel  AttendanceCheckOutModel
 	attendanceTodayModel     AttendanceTodayModel
 	attendanceHistoryModel   AttendanceHistoryModel
-	invitationCreateModel    InvitationCreateModel
 	joinModel                JoinModel
 	leaveRequestModel        LeaveRequestModel
 	leaveListModel           LeaveListModel
-	leaveReviewModel         LeaveReviewModel
 	leaveCancelModel         LeaveCancelModel
 	teamListModel            TeamListModel
-	roleUpdateModel          RoleUpdateModel
-	settingsModel            SettingsModel
 	projectListModel         ProjectListModel
-	projectCreateModel       ProjectCreateModel
-	projectSettingsModel     ProjectSettingsModel
-	projectMembersModel      ProjectMembersModel
 	changePasswordModel      ChangePasswordModel
-	resetPasswordModel       ResetPasswordModel
-	memberOfficeHoursModel   MemberOfficeHoursModel
 
 	// Output area
 	output     string
@@ -132,10 +103,6 @@ type ShellModel struct {
 		loading          bool
 		myStandup        *api.StandupResponse
 		myAttendance     *api.AttendanceResponse
-		attendanceMarked int
-		totalMembers     int
-		statusCounts     map[string]int
-		pendingLeaves    int
 		onLeaveToday     []string
 		fetchesCompleted int
 		totalFetches     int
@@ -148,7 +115,7 @@ type ShellModel struct {
 }
 
 // NewShellModel creates a new shell model
-func NewShellModel(authService *auth.Service, standupService *standup.Service, attendanceService *attendance.Service, invitationService *invitation.Service, leaveService *leave.Service, userService *user.Service, orgService *organization.Service, projectService *project.Service, cfg *config.Config) ShellModel {
+func NewShellModel(authService *auth.Service, standupService *standup.Service, attendanceService *attendance.Service, leaveService *leave.Service, userService *user.Service, projectService *project.Service, cfg *config.Config) ShellModel {
 	registry := NewCommandRegistry()
 	isAuth := authService.IsAuthenticated()
 	role := ""
@@ -162,10 +129,8 @@ func NewShellModel(authService *auth.Service, standupService *standup.Service, a
 		authService:       authService,
 		standupService:    standupService,
 		attendanceService: attendanceService,
-		invitationService: invitationService,
 		leaveService:      leaveService,
 		userService:       userService,
-		orgService:        orgService,
 		projectService:    projectService,
 		config:            cfg,
 		commandInput:      NewCommandInput(registry, isAuth, role),
@@ -180,12 +145,11 @@ func NewShellModel(authService *auth.Service, standupService *standup.Service, a
 func (m ShellModel) Init() tea.Cmd {
 	if m.authService.IsAuthenticated() {
 		m.dashboard.loading = true
-		m.dashboard.totalFetches = 4
+		m.dashboard.totalFetches = 3
 		return tea.Batch(
 			m.commandInput.Focus(),
 			m.fetchDashboardStandups(),
 			m.fetchDashboardAttendance(),
-			m.fetchDashboardPendingLeaves(),
 			m.fetchDashboardApprovedLeaves(),
 		)
 	}
@@ -194,7 +158,7 @@ func (m ShellModel) Init() tea.Cmd {
 
 func (m ShellModel) fetchDashboardStandups() tea.Cmd {
 	return func() tea.Msg {
-		standups, _, err := m.standupService.GetToday()
+		standups, err := m.standupService.GetToday()
 		return dashboardStandupMsg{standups: standups, err: err}
 	}
 }
@@ -203,13 +167,6 @@ func (m ShellModel) fetchDashboardAttendance() tea.Cmd {
 	return func() tea.Msg {
 		resp, err := m.attendanceService.GetToday()
 		return dashboardAttendanceMsg{resp: resp, err: err}
-	}
-}
-
-func (m ShellModel) fetchDashboardPendingLeaves() tea.Cmd {
-	return func() tea.Msg {
-		_, count, err := m.leaveService.GetAll("pending", "", 1, 0)
-		return dashboardPendingLeavesMsg{count: count, err: err}
 	}
 }
 
@@ -235,18 +192,13 @@ func (m *ShellModel) startDashboardFetch() tea.Cmd {
 		loading          bool
 		myStandup        *api.StandupResponse
 		myAttendance     *api.AttendanceResponse
-		attendanceMarked int
-		totalMembers     int
-		statusCounts     map[string]int
-		pendingLeaves    int
 		onLeaveToday     []string
 		fetchesCompleted int
 		totalFetches     int
-	}{loading: true, totalFetches: 4}
+	}{loading: true, totalFetches: 3}
 	return tea.Batch(
 		m.fetchDashboardStandups(),
 		m.fetchDashboardAttendance(),
-		m.fetchDashboardPendingLeaves(),
 		m.fetchDashboardApprovedLeaves(),
 	)
 }
@@ -263,13 +215,8 @@ func (m ShellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case dashboardStandupMsg:
 		m.dashboard.fetchesCompleted++
-		if msg.err == nil && m.config.User != nil {
-			for _, s := range msg.standups {
-				if s.UserID == m.config.User.ID {
-					m.dashboard.myStandup = s
-					break
-				}
-			}
+		if msg.err == nil && len(msg.standups) > 0 {
+			m.dashboard.myStandup = msg.standups[0]
 		}
 		if m.dashboard.fetchesCompleted >= m.dashboard.totalFetches {
 			m.dashboard.loading = false
@@ -277,27 +224,8 @@ func (m ShellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case dashboardAttendanceMsg:
 		m.dashboard.fetchesCompleted++
-		if msg.err == nil && msg.resp != nil {
-			m.dashboard.attendanceMarked = msg.resp.Marked
-			m.dashboard.totalMembers = msg.resp.TotalMembers
-			m.dashboard.statusCounts = msg.resp.StatusCounts
-			if m.config.User != nil {
-				for _, a := range msg.resp.Attendance {
-					if a.UserID == m.config.User.ID {
-						m.dashboard.myAttendance = a
-						break
-					}
-				}
-			}
-		}
-		if m.dashboard.fetchesCompleted >= m.dashboard.totalFetches {
-			m.dashboard.loading = false
-		}
-		return m, nil
-	case dashboardPendingLeavesMsg:
-		m.dashboard.fetchesCompleted++
 		if msg.err == nil {
-			m.dashboard.pendingLeaves = msg.count
+			m.dashboard.myAttendance = msg.resp
 		}
 		if m.dashboard.fetchesCompleted >= m.dashboard.totalFetches {
 			m.dashboard.loading = false
@@ -328,8 +256,6 @@ func (m ShellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateStandupToday(msg)
 	case viewStandupHistory:
 		return m.updateStandupHistory(msg)
-	case viewAttendanceMark:
-		return m.updateAttendanceMark(msg)
 	case viewAttendanceCheckIn:
 		return m.updateAttendanceCheckIn(msg)
 	case viewAttendanceCheckOut:
@@ -338,38 +264,20 @@ func (m ShellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateAttendanceToday(msg)
 	case viewAttendanceHistory:
 		return m.updateAttendanceHistory(msg)
-	case viewInvitationCreate:
-		return m.updateInvitationCreate(msg)
 	case viewJoin:
 		return m.updateJoin(msg)
 	case viewLeaveRequest:
 		return m.updateLeaveRequest(msg)
 	case viewLeaveList:
 		return m.updateLeaveList(msg)
-	case viewLeaveReview:
-		return m.updateLeaveReview(msg)
 	case viewLeaveCancel:
 		return m.updateLeaveCancel(msg)
 	case viewTeamList:
 		return m.updateTeamList(msg)
-	case viewRoleUpdate:
-		return m.updateRoleUpdate(msg)
-	case viewMemberOfficeHours:
-		return m.updateMemberOfficeHours(msg)
-	case viewSettings:
-		return m.updateSettings(msg)
 	case viewProjectList:
 		return m.updateProjectList(msg)
-	case viewProjectCreate:
-		return m.updateProjectCreate(msg)
-	case viewProjectSettings:
-		return m.updateProjectSettings(msg)
-	case viewProjectMembers:
-		return m.updateProjectMembers(msg)
 	case viewChangePassword:
 		return m.updateChangePassword(msg)
-	case viewResetPassword:
-		return m.updateResetPassword(msg)
 	}
 
 	// Handle shell input
@@ -470,11 +378,6 @@ func (m ShellModel) handleCommand(cmdName string) (tea.Model, tea.Cmd) {
 		m.joinModel = NewJoinModel(m.authService, nil)
 		return m, m.joinModel.Init()
 
-	case "invite":
-		m.currentView = viewInvitationCreate
-		m.invitationCreateModel = NewInvitationCreateModel(m.invitationService)
-		return m, m.invitationCreateModel.Init()
-
 	case "logout":
 		if err := m.authService.Logout(); err != nil {
 			m.output = fmt.Sprintf("Logout failed: %s", err.Error())
@@ -487,10 +390,6 @@ func (m ShellModel) handleCommand(cmdName string) (tea.Model, tea.Cmd) {
 				loading          bool
 				myStandup        *api.StandupResponse
 				myAttendance     *api.AttendanceResponse
-				attendanceMarked int
-				totalMembers     int
-				statusCounts     map[string]int
-				pendingLeaves    int
 				onLeaveToday     []string
 				fetchesCompleted int
 				totalFetches     int
@@ -503,21 +402,6 @@ func (m ShellModel) handleCommand(cmdName string) (tea.Model, tea.Cmd) {
 		m.currentView = viewProjectList
 		m.projectListModel = NewProjectListModel(m.projectService)
 		return m, m.projectListModel.Init()
-
-	case "project create":
-		m.currentView = viewProjectCreate
-		m.projectCreateModel = NewProjectCreateModel(m.projectService)
-		return m, m.projectCreateModel.Init()
-
-	case "project settings":
-		m.currentView = viewProjectSettings
-		m.projectSettingsModel = NewProjectSettingsModel(m.projectService)
-		return m, m.projectSettingsModel.Init()
-
-	case "project members":
-		m.currentView = viewProjectMembers
-		m.projectMembersModel = NewProjectMembersModel(m.projectService, m.userService)
-		return m, m.projectMembersModel.Init()
 
 	// Standup commands
 	case "standup":
@@ -546,11 +430,6 @@ func (m ShellModel) handleCommand(cmdName string) (tea.Model, tea.Cmd) {
 		m.attendanceCheckOutModel = NewAttendanceCheckOutModel(m.attendanceService)
 		return m, m.attendanceCheckOutModel.Init()
 
-	case "attendance":
-		m.currentView = viewAttendanceMark
-		m.attendanceMarkModel = NewAttendanceMarkModel(m.attendanceService)
-		return m, m.attendanceMarkModel.Init()
-
 	case "attendance today":
 		m.currentView = viewAttendanceToday
 		m.attendanceTodayModel = NewAttendanceTodayModel(m.attendanceService)
@@ -572,11 +451,6 @@ func (m ShellModel) handleCommand(cmdName string) (tea.Model, tea.Cmd) {
 		m.leaveListModel = NewLeaveListModel(m.leaveService)
 		return m, m.leaveListModel.Init()
 
-	case "leave review":
-		m.currentView = viewLeaveReview
-		m.leaveReviewModel = NewLeaveReviewModel(m.leaveService)
-		return m, m.leaveReviewModel.Init()
-
 	case "leave cancel":
 		userID := ""
 		if m.config.User != nil {
@@ -586,37 +460,16 @@ func (m ShellModel) handleCommand(cmdName string) (tea.Model, tea.Cmd) {
 		m.leaveCancelModel = NewLeaveCancelModel(m.leaveService, userID)
 		return m, m.leaveCancelModel.Init()
 
-	// User management commands
+	// Team
 	case "team":
 		m.currentView = viewTeamList
 		m.teamListModel = NewTeamListModel(m.userService)
 		return m, m.teamListModel.Init()
 
-	case "role":
-		m.currentView = viewRoleUpdate
-		m.roleUpdateModel = NewRoleUpdateModel(m.userService)
-		return m, m.roleUpdateModel.Init()
-
-	case "office-hours":
-		m.currentView = viewMemberOfficeHours
-		m.memberOfficeHoursModel = NewMemberOfficeHoursModel(m.userService)
-		return m, m.memberOfficeHoursModel.Init()
-
-	// Organization settings
-	case "settings":
-		m.currentView = viewSettings
-		m.settingsModel = NewSettingsModel(m.orgService)
-		return m, m.settingsModel.Init()
-
 	case "password":
 		m.currentView = viewChangePassword
 		m.changePasswordModel = NewChangePasswordModel(m.userService)
 		return m, m.changePasswordModel.Init()
-
-	case "reset-password":
-		m.currentView = viewResetPassword
-		m.resetPasswordModel = NewResetPasswordModel(m.userService)
-		return m, m.resetPasswordModel.Init()
 
 	// Utility commands
 	case "help":
@@ -798,31 +651,6 @@ func (m ShellModel) updateStandupHistory(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m ShellModel) updateAttendanceMark(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if msg.String() == "esc" {
-			m.currentView = viewShell
-			return m, m.commandInput.Focus()
-		}
-	case attendanceMarkSuccessMsg:
-		m.currentView = viewShell
-		m.output = fmt.Sprintf("Attendance marked as %s!", msg.status)
-		m.outputType = "success"
-		return m, m.commandInput.Focus()
-	}
-
-	newModel, cmd := m.attendanceMarkModel.Update(msg)
-	m.attendanceMarkModel = newModel.(AttendanceMarkModel)
-
-	if m.attendanceMarkModel.shouldGoBack {
-		m.currentView = viewShell
-		return m, m.commandInput.Focus()
-	}
-
-	return m, cmd
-}
-
 func (m ShellModel) updateAttendanceCheckIn(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -913,31 +741,6 @@ func (m ShellModel) updateAttendanceHistory(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m ShellModel) updateInvitationCreate(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if msg.String() == "esc" {
-			m.currentView = viewShell
-			return m, m.commandInput.Focus()
-		}
-	case invitationCreateSuccessMsg:
-		m.currentView = viewShell
-		m.output = fmt.Sprintf("Invitation sent to %s (token: %s)", msg.email, msg.token)
-		m.outputType = "success"
-		return m, m.commandInput.Focus()
-	}
-
-	newModel, cmd := m.invitationCreateModel.Update(msg)
-	m.invitationCreateModel = newModel.(InvitationCreateModel)
-
-	if m.invitationCreateModel.shouldGoBack {
-		m.currentView = viewShell
-		return m, m.commandInput.Focus()
-	}
-
-	return m, cmd
-}
-
 func (m ShellModel) updateJoin(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -1010,26 +813,6 @@ func (m ShellModel) updateLeaveList(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m ShellModel) updateLeaveReview(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if msg.String() == "esc" || msg.String() == "q" {
-			m.currentView = viewShell
-			return m, m.commandInput.Focus()
-		}
-	}
-
-	newModel, cmd := m.leaveReviewModel.Update(msg)
-	m.leaveReviewModel = newModel.(LeaveReviewModel)
-
-	if m.leaveReviewModel.shouldGoBack {
-		m.currentView = viewShell
-		return m, m.commandInput.Focus()
-	}
-
-	return m, cmd
-}
-
 func (m ShellModel) updateLeaveCancel(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -1070,68 +853,6 @@ func (m ShellModel) updateTeamList(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m ShellModel) updateRoleUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if msg.String() == "esc" {
-			m.currentView = viewShell
-			return m, m.commandInput.Focus()
-		}
-	case roleUpdateSuccessMsg:
-		m.currentView = viewShell
-		m.output = fmt.Sprintf("Updated %s's role to %s", msg.name, msg.role)
-		m.outputType = "success"
-		return m, m.commandInput.Focus()
-	}
-
-	newModel, cmd := m.roleUpdateModel.Update(msg)
-	m.roleUpdateModel = newModel.(RoleUpdateModel)
-
-	if m.roleUpdateModel.shouldGoBack {
-		m.currentView = viewShell
-		return m, m.commandInput.Focus()
-	}
-
-	return m, cmd
-}
-
-func (m ShellModel) updateMemberOfficeHours(msg tea.Msg) (tea.Model, tea.Cmd) {
-	newModel, cmd := m.memberOfficeHoursModel.Update(msg)
-	m.memberOfficeHoursModel = newModel.(MemberOfficeHoursModel)
-
-	if m.memberOfficeHoursModel.shouldGoBack {
-		m.currentView = viewShell
-		return m, m.commandInput.Focus()
-	}
-
-	return m, cmd
-}
-
-func (m ShellModel) updateSettings(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if msg.String() == "esc" {
-			m.currentView = viewShell
-			return m, m.commandInput.Focus()
-		}
-	case settingsUpdatedMsg:
-		m.currentView = viewShell
-		m.output = "Organization settings updated!"
-		m.outputType = "success"
-		return m, m.commandInput.Focus()
-	}
-
-	newModel, cmd := m.settingsModel.Update(msg)
-	m.settingsModel = newModel.(SettingsModel)
-
-	if m.settingsModel.shouldGoBack {
-		m.currentView = viewShell
-		return m, m.commandInput.Focus()
-	}
-
-	return m, cmd
-}
-
 func (m ShellModel) updateProjectList(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -1145,78 +866,6 @@ func (m ShellModel) updateProjectList(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.projectListModel = newModel.(ProjectListModel)
 
 	if m.projectListModel.shouldGoBack {
-		m.currentView = viewShell
-		return m, m.commandInput.Focus()
-	}
-
-	return m, cmd
-}
-
-func (m ShellModel) updateProjectCreate(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if msg.String() == "esc" {
-			// let model handle it
-		}
-	case projectCreateSuccessMsg:
-		m.currentView = viewShell
-		m.output = string(msg)
-		m.outputType = "success"
-		return m, m.commandInput.Focus()
-	}
-
-	newModel, cmd := m.projectCreateModel.Update(msg)
-	m.projectCreateModel = newModel.(ProjectCreateModel)
-
-	if m.projectCreateModel.shouldGoBack {
-		m.currentView = viewShell
-		return m, m.commandInput.Focus()
-	}
-
-	return m, cmd
-}
-
-func (m ShellModel) updateProjectSettings(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if msg.String() == "esc" {
-			// Let the model handle esc for phase transitions
-		}
-	case projectSettingsUpdatedMsg:
-		m.currentView = viewShell
-		m.output = "Project settings updated!"
-		m.outputType = "success"
-		return m, m.commandInput.Focus()
-	}
-
-	newModel, cmd := m.projectSettingsModel.Update(msg)
-	m.projectSettingsModel = newModel.(ProjectSettingsModel)
-
-	if m.projectSettingsModel.shouldGoBack {
-		m.currentView = viewShell
-		return m, m.commandInput.Focus()
-	}
-
-	return m, cmd
-}
-
-func (m ShellModel) updateProjectMembers(msg tea.Msg) (tea.Model, tea.Cmd) {
-	newModel, cmd := m.projectMembersModel.Update(msg)
-	m.projectMembersModel = newModel.(ProjectMembersModel)
-
-	if m.projectMembersModel.shouldGoBack {
-		m.currentView = viewShell
-		return m, m.commandInput.Focus()
-	}
-
-	return m, cmd
-}
-
-func (m ShellModel) updateResetPassword(msg tea.Msg) (tea.Model, tea.Cmd) {
-	newModel, cmd := m.resetPasswordModel.Update(msg)
-	m.resetPasswordModel = newModel.(ResetPasswordModel)
-
-	if m.resetPasswordModel.shouldGoBack {
 		m.currentView = viewShell
 		return m, m.commandInput.Focus()
 	}
@@ -1263,8 +912,6 @@ func (m ShellModel) View() string {
 		return m.standupTodayModel.View()
 	case viewStandupHistory:
 		return m.standupHistoryModel.View()
-	case viewAttendanceMark:
-		return m.attendanceMarkModel.View()
 	case viewAttendanceCheckIn:
 		return m.attendanceCheckInModel.View()
 	case viewAttendanceCheckOut:
@@ -1273,38 +920,20 @@ func (m ShellModel) View() string {
 		return m.attendanceTodayModel.View()
 	case viewAttendanceHistory:
 		return m.attendanceHistoryModel.View()
-	case viewInvitationCreate:
-		return m.invitationCreateModel.View()
 	case viewJoin:
 		return m.joinModel.View()
 	case viewLeaveRequest:
 		return m.leaveRequestModel.View()
 	case viewLeaveList:
 		return m.leaveListModel.View()
-	case viewLeaveReview:
-		return m.leaveReviewModel.View()
 	case viewLeaveCancel:
 		return m.leaveCancelModel.View()
 	case viewTeamList:
 		return m.teamListModel.View()
-	case viewRoleUpdate:
-		return m.roleUpdateModel.View()
-	case viewMemberOfficeHours:
-		return m.memberOfficeHoursModel.View()
-	case viewSettings:
-		return m.settingsModel.View()
 	case viewProjectList:
 		return m.projectListModel.View()
-	case viewProjectCreate:
-		return m.projectCreateModel.View()
-	case viewProjectSettings:
-		return m.projectSettingsModel.View()
-	case viewProjectMembers:
-		return m.projectMembersModel.View()
 	case viewChangePassword:
 		return m.changePasswordModel.View()
-	case viewResetPassword:
-		return m.resetPasswordModel.View()
 	}
 
 	// Render shell view
@@ -1372,10 +1001,10 @@ func (m ShellModel) renderHelp() string {
 	b.WriteString("Available Commands:\n\n")
 
 	categories := m.registry.GetByCategory(m.authService.IsAuthenticated(), m.getUserRole())
-	categoryOrder := []string{"auth", "standup", "attendance", "leave", "project", "admin", "utility"}
+	categoryOrder := []string{"auth", "standup", "attendance", "leave", "project", "team", "account", "utility"}
 	// When authenticated, auth commands (logout) go near the end
 	if m.authService.IsAuthenticated() {
-		categoryOrder = []string{"standup", "attendance", "leave", "project", "admin", "auth", "utility"}
+		categoryOrder = []string{"standup", "attendance", "leave", "project", "team", "account", "auth", "utility"}
 	}
 	categoryNames := map[string]string{
 		"auth":       "Authentication",
@@ -1383,7 +1012,8 @@ func (m ShellModel) renderHelp() string {
 		"attendance": "Attendance",
 		"leave":      "Leaves",
 		"project":    "Projects",
-		"admin":      "Team Management",
+		"team":       "Team",
+		"account":    "Account",
 		"utility":    "Utility",
 	}
 
@@ -1619,39 +1249,9 @@ func (m ShellModel) getDashboardRightLines() []string {
 		lines = append(lines, fmt.Sprintf("   %s  %s", warn.Render("○"), dim.Render("Attendance not marked")))
 	}
 
-	if m.config.User != nil && m.config.User.Role == "primary" && m.dashboard.pendingLeaves > 0 {
-		lines = append(lines, fmt.Sprintf("   %s  %s", warn.Render("!"), warn.Render(fmt.Sprintf("%d pending leave request(s)", m.dashboard.pendingLeaves))))
-	}
-
 	if len(m.dashboard.onLeaveToday) > 0 {
 		names := strings.Join(m.dashboard.onLeaveToday, ", ")
 		lines = append(lines, fmt.Sprintf("   %s  %s", dim.Render("✈"), dim.Render("On leave: "+names)))
-	}
-
-	lines = append(lines, "")
-	lines = append(lines, " "+sectionHeader.Render("Team Overview"))
-
-	if m.dashboard.totalMembers > 0 {
-		lines = append(lines, fmt.Sprintf("   Attendance: %s / %s marked",
-			normal.Render(fmt.Sprintf("%d", m.dashboard.attendanceMarked)),
-			dim.Render(fmt.Sprintf("%d", m.dashboard.totalMembers)),
-		))
-
-		var parts []string
-		for _, status := range []string{"present", "remote", "half-day", "absent"} {
-			if count, ok := m.dashboard.statusCounts[status]; ok && count > 0 {
-				parts = append(parts, fmt.Sprintf("%s: %d", status, count))
-			}
-		}
-		unmarked := m.dashboard.totalMembers - m.dashboard.attendanceMarked
-		if unmarked > 0 {
-			parts = append(parts, fmt.Sprintf("unmarked: %d", unmarked))
-		}
-		if len(parts) > 0 {
-			lines = append(lines, "   "+dim.Render(strings.Join(parts, "  ")))
-		}
-	} else {
-		lines = append(lines, "   "+dim.Render("No attendance data yet"))
 	}
 
 	lines = append(lines, "")

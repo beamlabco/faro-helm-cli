@@ -5,14 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/beamlabco/faro-helm/internal/api"
+	"github.com/beamlabco/faro-helm-cli/internal/api"
 )
-
-// Valid leave types
-var ValidTypes = []string{"sick", "casual", "paid", "unpaid", "wfh"}
-
-// Valid leave statuses
-var ValidStatuses = []string{"pending", "approved", "rejected"}
 
 // Service handles leave operations
 type Service struct {
@@ -26,12 +20,22 @@ func NewService(client *api.Client) *Service {
 	}
 }
 
-// Create creates a new leave request
-func (s *Service) Create(leaveType, startDate, endDate, reason string) (*api.LeaveResponse, error) {
-	// Validate type
-	leaveType = strings.ToLower(strings.TrimSpace(leaveType))
-	if !isValidType(leaveType) {
-		return nil, fmt.Errorf("invalid leave type, must be one of: %s", strings.Join(ValidTypes, ", "))
+// GetBalance retrieves the current user's leave quota/used/remaining per active leave
+// type, for the given year. year of 0 uses the server's default (current year).
+func (s *Service) GetBalance(year int) ([]*api.LeaveTypeBalance, int, error) {
+	resp, err := s.client.GetLeaveBalance(year)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get leave balance: %w", err)
+	}
+
+	return resp.Balances, resp.Year, nil
+}
+
+// Create creates a new leave request for the given leave type ID
+func (s *Service) Create(typeID, startDate, endDate, reason string) (*api.CreatedLeave, error) {
+	typeID = strings.TrimSpace(typeID)
+	if typeID == "" {
+		return nil, fmt.Errorf("a leave type must be selected")
 	}
 
 	// Validate dates
@@ -48,7 +52,7 @@ func (s *Service) Create(leaveType, startDate, endDate, reason string) (*api.Lea
 	reason = strings.TrimSpace(reason)
 
 	req := &api.CreateLeaveRequest{
-		Type:      leaveType,
+		TypeID:    typeID,
 		StartDate: startDate,
 		EndDate:   endDate,
 		Reason:    reason,
@@ -59,7 +63,7 @@ func (s *Service) Create(leaveType, startDate, endDate, reason string) (*api.Lea
 		return nil, fmt.Errorf("failed to create leave request: %w", err)
 	}
 
-	return resp, nil
+	return resp.Leave, nil
 }
 
 // GetAll retrieves leaves with optional filters
@@ -76,22 +80,7 @@ func (s *Service) GetAll(status string, userID string, limit, offset int) ([]*ap
 		return nil, 0, fmt.Errorf("failed to get leaves: %w", err)
 	}
 
-	return resp.Leaves, resp.Count, nil
-}
-
-// UpdateStatus approves or rejects a leave request
-func (s *Service) UpdateStatus(leaveID string, status string) (*api.LeaveResponse, error) {
-	status = strings.ToLower(strings.TrimSpace(status))
-	if status != "approved" && status != "rejected" {
-		return nil, fmt.Errorf("status must be 'approved' or 'rejected'")
-	}
-
-	resp, err := s.client.UpdateLeaveStatus(leaveID, status)
-	if err != nil {
-		return nil, fmt.Errorf("failed to update leave status: %w", err)
-	}
-
-	return resp, nil
+	return resp.Leaves, resp.Total, nil
 }
 
 // Cancel cancels a pending leave request
@@ -101,13 +90,4 @@ func (s *Service) Cancel(leaveID string) error {
 	}
 
 	return nil
-}
-
-func isValidType(t string) bool {
-	for _, v := range ValidTypes {
-		if v == t {
-			return true
-		}
-	}
-	return false
 }

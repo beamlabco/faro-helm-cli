@@ -6,8 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/beamlabco/faro-helm/internal/api"
-	"github.com/beamlabco/faro-helm/internal/attendance"
+	"github.com/beamlabco/faro-helm-cli/internal/api"
+	"github.com/beamlabco/faro-helm-cli/internal/attendance"
 )
 
 // AttendanceHistoryModel represents the my attendance history view
@@ -105,10 +105,10 @@ func (m AttendanceHistoryModel) View() string {
 
 			// Checkin/checkout times
 			timeStyle := lipgloss.NewStyle().Foreground(mutedColor)
-			if record.CheckinTime != nil {
-				b.WriteString(timeStyle.Render(fmt.Sprintf("  In: %s", utcTimeToLocal(*record.CheckinTime))))
-				if record.CheckoutTime != nil {
-					b.WriteString(timeStyle.Render(fmt.Sprintf("  Out: %s", utcTimeToLocal(*record.CheckoutTime))))
+			if record.CheckinAt != nil {
+				b.WriteString(timeStyle.Render(fmt.Sprintf("  In: %s", utcTimeToLocal(*record.CheckinAt))))
+				if record.CheckoutAt != nil {
+					b.WriteString(timeStyle.Render(fmt.Sprintf("  Out: %s", utcTimeToLocal(*record.CheckoutAt))))
 				}
 				b.WriteString("\n")
 			}

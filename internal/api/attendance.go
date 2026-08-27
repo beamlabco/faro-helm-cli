@@ -5,13 +5,6 @@ import (
 	"time"
 )
 
-// AttendanceRequest represents the attendance submission request
-type AttendanceRequest struct {
-	Date   string `json:"date"`
-	Status string `json:"status"`
-	Notes  string `json:"notes,omitempty"`
-}
-
 // CheckInRequest represents the check-in request
 type CheckInRequest struct {
 	Status string `json:"status,omitempty"`
@@ -25,37 +18,18 @@ type CheckOutRequest struct {
 
 // AttendanceResponse represents an attendance record in API response
 type AttendanceResponse struct {
-	ID           string    `json:"id"`
-	UserID       string    `json:"userId"`
-	Date         string    `json:"date"`
-	Status       string    `json:"status"`
-	Notes        *string   `json:"notes"`
-	CheckinTime  *string   `json:"checkinTime"`
-	CheckoutTime *string   `json:"checkoutTime"`
-	CreatedAt    time.Time `json:"createdAt"`
-	UpdatedAt    time.Time `json:"updatedAt"`
-	User         *struct {
-		ID    string `json:"id"`
+	ID         string    `json:"id"`
+	MemberID   string    `json:"memberId"`
+	Date       string    `json:"date"`
+	Status     string    `json:"status"`
+	Notes      *string   `json:"notes"`
+	CheckinAt  *string   `json:"checkinAt"`
+	CheckoutAt *string   `json:"checkoutAt"`
+	CreatedAt  time.Time `json:"createdAt"`
+	User       *struct {
 		Name  string `json:"name"`
 		Email string `json:"email"`
 	} `json:"user,omitempty"`
-}
-
-// NotMarkedUser represents a member who hasn't marked attendance yet
-type NotMarkedUser struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Email string `json:"email"`
-}
-
-// GetTodayAttendanceResponse represents the get today attendance response
-type GetTodayAttendanceResponse struct {
-	Attendance   []*AttendanceResponse `json:"attendance"`
-	Date         string                `json:"date"`
-	Marked       int                   `json:"marked"`
-	TotalMembers int                   `json:"totalMembers"`
-	StatusCounts map[string]int        `json:"statusCounts"`
-	NotMarked    []*NotMarkedUser      `json:"notMarked"`
 }
 
 // GetMyAttendanceResponse represents the get my attendance response
@@ -66,72 +40,22 @@ type GetMyAttendanceResponse struct {
 	Offset     int                   `json:"offset"`
 }
 
-// MarkAttendance marks attendance for a date
-func (c *Client) MarkAttendance(req *AttendanceRequest) (*AttendanceResponse, error) {
-	var result AttendanceResponse
-	resp, err := c.http.R().
-		SetBody(req).
-		SetResult(&result).
-		Post("/api/attendance")
-
-	if err != nil {
-		return nil, err
+// GetMyAttendance retrieves the current user's attendance history.
+// period, if non-empty, must be one of "today", "week", or "month".
+func (c *Client) GetMyAttendance(period string, limit, offset int) (*GetMyAttendanceResponse, error) {
+	params := map[string]string{
+		"limit":  fmt.Sprintf("%d", limit),
+		"offset": fmt.Sprintf("%d", offset),
+	}
+	if period != "" {
+		params["period"] = period
 	}
 
-	if resp.IsError() {
-		return nil, parseError(resp)
-	}
-
-	return &result, nil
-}
-
-// GetTodayAttendance retrieves all team attendance for today
-func (c *Client) GetTodayAttendance() (*GetTodayAttendanceResponse, error) {
-	var result GetTodayAttendanceResponse
-	resp, err := c.http.R().
-		SetResult(&result).
-		Get("/api/attendance/today")
-
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.IsError() {
-		return nil, parseError(resp)
-	}
-
-	return &result, nil
-}
-
-// GetMyAttendance retrieves the current user's attendance history
-func (c *Client) GetMyAttendance(limit, offset int) (*GetMyAttendanceResponse, error) {
 	var result GetMyAttendanceResponse
 	resp, err := c.http.R().
-		SetQueryParams(map[string]string{
-			"limit":  fmt.Sprintf("%d", limit),
-			"offset": fmt.Sprintf("%d", offset),
-		}).
+		SetQueryParams(params).
 		SetResult(&result).
-		Get("/api/attendance/my")
-
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.IsError() {
-		return nil, parseError(resp)
-	}
-
-	return &result, nil
-}
-
-// GetAttendanceByDate retrieves team attendance for a specific date
-func (c *Client) GetAttendanceByDate(date string) (*GetTodayAttendanceResponse, error) {
-	var result GetTodayAttendanceResponse
-	resp, err := c.http.R().
-		SetQueryParam("date", date).
-		SetResult(&result).
-		Get("/api/attendance")
+		Get("/api/v1/attendances/my")
 
 	if err != nil {
 		return nil, err
@@ -150,7 +74,7 @@ func (c *Client) CheckIn(req *CheckInRequest) (*AttendanceResponse, error) {
 	resp, err := c.http.R().
 		SetBody(req).
 		SetResult(&result).
-		Post("/api/attendance/checkin")
+		Post("/api/v1/attendances/checkin")
 
 	if err != nil {
 		return nil, err
@@ -169,7 +93,7 @@ func (c *Client) CheckOut(req *CheckOutRequest) (*AttendanceResponse, error) {
 	resp, err := c.http.R().
 		SetBody(req).
 		SetResult(&result).
-		Post("/api/attendance/checkout")
+		Post("/api/v1/attendances/checkout")
 
 	if err != nil {
 		return nil, err

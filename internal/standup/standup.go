@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/beamlabco/faro-helm/internal/api"
+	"github.com/beamlabco/faro-helm-cli/internal/api"
 )
 
 // Service handles standup operations
@@ -57,18 +57,18 @@ func (s *Service) Submit(projectID string, date, yesterday, today, blockers stri
 	return resp.Standup, nil
 }
 
-// GetToday retrieves all team standups for today
-func (s *Service) GetToday() ([]*api.StandupResponse, string, error) {
-	resp, err := s.client.GetTodayStandups()
+// GetToday retrieves the current user's standups submitted today (across projects).
+func (s *Service) GetToday() ([]*api.StandupResponse, error) {
+	resp, err := s.client.GetMyStandups("today", 100, 0)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to get today's standups: %w", err)
+		return nil, fmt.Errorf("failed to get today's standups: %w", err)
 	}
 
-	return resp.Standups, resp.Date, nil
+	return resp.Standups, nil
 }
 
-// GetMy retrieves the current user's standup history
-func (s *Service) GetMy(limit, offset int) ([]*api.StandupResponse, *api.Pagination, error) {
+// GetMy retrieves the current user's standup history. Returns standups, total count, error.
+func (s *Service) GetMy(limit, offset int) ([]*api.StandupResponse, int, error) {
 	if limit <= 0 {
 		limit = 10
 	}
@@ -76,25 +76,10 @@ func (s *Service) GetMy(limit, offset int) ([]*api.StandupResponse, *api.Paginat
 		offset = 0
 	}
 
-	resp, err := s.client.GetMyStandups(limit, offset)
+	resp, err := s.client.GetMyStandups("", limit, offset)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get my standups: %w", err)
+		return nil, 0, fmt.Errorf("failed to get my standups: %w", err)
 	}
 
-	return resp.Standups, resp.Pagination, nil
-}
-
-// GetByDate retrieves team standups for a specific date
-func (s *Service) GetByDate(date string) ([]*api.StandupResponse, error) {
-	// Validate date format
-	if _, err := time.Parse("2006-01-02", date); err != nil {
-		return nil, fmt.Errorf("invalid date format, use YYYY-MM-DD")
-	}
-
-	resp, err := s.client.GetStandupsByDate(date)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get standups for date %s: %w", date, err)
-	}
-
-	return resp.Standups, nil
+	return resp.Standups, resp.Total, nil
 }
