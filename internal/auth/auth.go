@@ -1,12 +1,19 @@
 package auth
 
 import (
+	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/beamlabco/faro-helm-cli/internal/api"
 	"github.com/beamlabco/faro-helm-cli/internal/config"
+	"github.com/beamlabco/faro-helm-cli/internal/oauthflow"
 )
+
+// browserLoginTimeout bounds how long CompleteBrowserLogin waits for the
+// browser redirect before giving up.
+const browserLoginTimeout = 5 * time.Minute
 
 // Service handles authentication operations
 type Service struct {
@@ -95,21 +102,80 @@ func (s *Service) Join(email, password, name, token string) error {
 	return nil
 }
 
-// Login authenticates via auth-api and stores the session.
-func (s *Service) Login(email, password string) error {
-	if err := validateEmail(email); err != nil {
-		return err
-	}
-	if password == "" {
-		return fmt.Errorf("password is required")
-	}
+// BrowserLogin holds the in-progress state of an Authorization Code + PKCE
+// login: the URL to open (or show the user, if auto-open fails) and the
+// local callback server + verifier needed to complete it.
+type BrowserLogin struct {
+	AuthorizeURL string
 
-	resp, err := s.authClient.Login(&api.AuthLoginRequest{Email: email, Password: password})
+	server   *oauthflow.CallbackServer
+	verifier string
+	state    string
+}
+
+// loginScope is requested from the auth server; it's intersected server-side
+// against faro-helm-cli's registered allowed_scopes, so requesting more than
+// the client is allowed is harmless.
+const loginScope = "helm:read helm:write profile"
+
+// BeginBrowserLogin starts the Authorization Code + PKCE flow: generates
+// PKCE + state, binds the local loopback callback server, and builds the
+// /oauth/authorize URL. It does not open a browser or block — callers
+// typically want to render the URL immediately, then call OpenBrowser and
+// CompleteBrowserLogin.
+func (s *Service) BeginBrowserLogin() (*BrowserLogin, error) {
+	pkce, err := oauthflow.GeneratePKCE()
 	if err != nil {
-		return fmt.Errorf("login failed: %w", err)
+		return nil, fmt.Errorf("failed to generate PKCE parameters: %w", err)
+	}
+	state, err := oauthflow.GenerateState()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate state: %w", err)
+	}
+	server, err := oauthflow.StartCallbackServer()
+	if err != nil {
+		return nil, fmt.Errorf("failed to start local callback server: %w", err)
 	}
 
-	me, err := s.authClient.GetMe(resp.AccessToken)
+	authorizeURL := oauthflow.BuildAuthorizeURL(oauthflow.AuthorizeURLParams{
+		AuthBaseURL:   s.authClient.BaseURL(),
+		ClientID:      oauthflow.ClientID,
+		RedirectURI:   server.RedirectURI(),
+		Scope:         loginScope,
+		State:         state,
+		CodeChallenge: pkce.Challenge,
+	})
+
+	return &BrowserLogin{
+		AuthorizeURL: authorizeURL,
+		server:       server,
+		verifier:     pkce.Verifier,
+		state:        state,
+	}, nil
+}
+
+// CompleteBrowserLogin blocks until the browser redirect arrives (or
+// browserLoginTimeout elapses / ctx is cancelled), exchanges the resulting
+// code for tokens, resolves the account's workspace, and persists the
+// session — mirroring what Login/CompleteDeviceLogin used to do. Always
+// closes the callback server before returning.
+func (s *Service) CompleteBrowserLogin(ctx context.Context, bl *BrowserLogin) error {
+	defer bl.server.Close()
+
+	ctx, cancel := context.WithTimeout(ctx, browserLoginTimeout)
+	defer cancel()
+
+	code, err := bl.server.Await(ctx, bl.state)
+	if err != nil {
+		return fmt.Errorf("sign-in failed: %w", err)
+	}
+
+	tokens, err := s.authClient.ExchangeAuthorizationCode(code, bl.server.RedirectURI(), bl.verifier)
+	if err != nil {
+		return fmt.Errorf("failed to exchange authorization code: %w", err)
+	}
+
+	me, err := s.authClient.GetMe(tokens.AccessToken)
 	if err != nil {
 		return fmt.Errorf("failed to fetch account info: %w", err)
 	}
@@ -120,9 +186,9 @@ func (s *Service) Login(email, password string) error {
 	ws := me.Workspaces[0]
 	user := &config.User{
 		ID:        ws.MemberID,
-		AccountID: resp.Account.ID,
-		Email:     resp.Account.Email,
-		Name:      resp.Account.Name,
+		AccountID: me.Account.ID,
+		Email:     me.Account.Email,
+		Name:      me.Account.Name,
 		Role:      ws.Role,
 	}
 	org := &config.Organization{
@@ -131,11 +197,11 @@ func (s *Service) Login(email, password string) error {
 		Status: "active",
 	}
 
-	s.config.SetAuthData(resp.AccessToken, resp.RefreshToken, user, org)
+	s.config.SetAuthData(tokens.AccessToken, tokens.RefreshToken, user, org)
 	if err := config.Save(s.config); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
-	s.client.SetToken(resp.AccessToken)
+	s.client.SetToken(tokens.AccessToken)
 	return nil
 }
 
@@ -162,69 +228,6 @@ func (s *Service) GetUser() *config.User {
 // GetOrganization returns the user's organization
 func (s *Service) GetOrganization() *config.Organization {
 	return s.config.Organization
-}
-
-// DeviceFlowInfo holds the display info returned after initiating device flow.
-type DeviceFlowInfo struct {
-	DeviceCode      string
-	UserCode        string
-	VerificationURI string
-	ExpiresIn       int
-	Interval        int
-}
-
-// StartDeviceFlow initiates the device authorization flow and returns display info.
-func (s *Service) StartDeviceFlow() (*DeviceFlowInfo, error) {
-	resp, err := s.authClient.InitiateDeviceFlow()
-	if err != nil {
-		return nil, fmt.Errorf("failed to start device flow: %w", err)
-	}
-	return &DeviceFlowInfo{
-		DeviceCode:      resp.DeviceCode,
-		UserCode:        resp.UserCode,
-		VerificationURI: resp.VerificationURI,
-		ExpiresIn:       resp.ExpiresIn,
-		Interval:        resp.Interval,
-	}, nil
-}
-
-// PollDeviceToken polls once for a completed device authorization.
-func (s *Service) PollDeviceToken(deviceCode string) (*api.DeviceTokenPair, error) {
-	return s.authClient.PollDeviceToken(deviceCode)
-}
-
-// CompleteDeviceLogin saves auth data after a successful device flow poll.
-func (s *Service) CompleteDeviceLogin(tokenPair *api.DeviceTokenPair) error {
-	me, err := s.authClient.GetMe(tokenPair.AccessToken)
-	if err != nil {
-		return fmt.Errorf("failed to fetch account info: %w", err)
-	}
-
-	if len(me.Workspaces) == 0 {
-		return fmt.Errorf("account has no workspaces — register or join an organisation first")
-	}
-
-	ws := me.Workspaces[0]
-	user := &config.User{
-		ID:        ws.MemberID,
-		AccountID: me.Account.ID,
-		Email:     me.Account.Email,
-		Name:      me.Account.Name,
-		Role:      ws.Role,
-	}
-	org := &config.Organization{
-		ID:     ws.WorkspaceID,
-		Name:   ws.Name,
-		Status: "active",
-	}
-
-	s.config.SetAuthData(tokenPair.AccessToken, tokenPair.RefreshToken, user, org)
-	if err := config.Save(s.config); err != nil {
-		return fmt.Errorf("failed to save config: %w", err)
-	}
-
-	s.client.SetToken(tokenPair.AccessToken)
-	return nil
 }
 
 // Validation functions

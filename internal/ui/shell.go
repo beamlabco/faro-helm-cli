@@ -5,8 +5,6 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/beamlabco/faro-helm-cli/internal/api"
 	"github.com/beamlabco/faro-helm-cli/internal/attendance"
 	"github.com/beamlabco/faro-helm-cli/internal/auth"
@@ -15,6 +13,8 @@ import (
 	"github.com/beamlabco/faro-helm-cli/internal/project"
 	"github.com/beamlabco/faro-helm-cli/internal/standup"
 	"github.com/beamlabco/faro-helm-cli/internal/user"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // View states
@@ -22,8 +22,7 @@ type viewState int
 
 const (
 	viewShell viewState = iota
-	viewDeviceFlow
-	viewLogin
+	viewBrowserLogin
 	viewRegister
 	viewStandupSubmit
 	viewStandupToday
@@ -76,23 +75,22 @@ type ShellModel struct {
 	currentView viewState
 
 	// Sub-models
-	deviceFlowModel        DeviceFlowModel
-	loginModel             LoginModel
-	registerModel          RegisterModel
-	standupSubmitModel     StandupSubmitModel
-	standupTodayModel      StandupTodayModel
-	standupHistoryModel    StandupHistoryModel
-	attendanceCheckInModel   AttendanceCheckInModel
-	attendanceCheckOutModel  AttendanceCheckOutModel
-	attendanceTodayModel     AttendanceTodayModel
-	attendanceHistoryModel   AttendanceHistoryModel
-	joinModel                JoinModel
-	leaveRequestModel        LeaveRequestModel
-	leaveListModel           LeaveListModel
-	leaveCancelModel         LeaveCancelModel
-	teamListModel            TeamListModel
-	projectListModel         ProjectListModel
-	changePasswordModel      ChangePasswordModel
+	browserLoginModel       BrowserLoginModel
+	registerModel           RegisterModel
+	standupSubmitModel      StandupSubmitModel
+	standupTodayModel       StandupTodayModel
+	standupHistoryModel     StandupHistoryModel
+	attendanceCheckInModel  AttendanceCheckInModel
+	attendanceCheckOutModel AttendanceCheckOutModel
+	attendanceTodayModel    AttendanceTodayModel
+	attendanceHistoryModel  AttendanceHistoryModel
+	joinModel               JoinModel
+	leaveRequestModel       LeaveRequestModel
+	leaveListModel          LeaveListModel
+	leaveCancelModel        LeaveCancelModel
+	teamListModel           TeamListModel
+	projectListModel        ProjectListModel
+	changePasswordModel     ChangePasswordModel
 
 	// Output area
 	output     string
@@ -244,10 +242,8 @@ func (m ShellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Route to sub-model if active
 	switch m.currentView {
-	case viewDeviceFlow:
-		return m.updateDeviceFlow(msg)
-	case viewLogin:
-		return m.updateLogin(msg)
+	case viewBrowserLogin:
+		return m.updateBrowserLogin(msg)
 	case viewRegister:
 		return m.updateRegister(msg)
 	case viewStandupSubmit:
@@ -364,9 +360,9 @@ func (m ShellModel) handleCommand(cmdName string) (tea.Model, tea.Cmd) {
 	switch cmdName {
 	// Auth commands
 	case "login":
-		m.currentView = viewDeviceFlow
-		m.deviceFlowModel = NewDeviceFlowModel(m.authService, nil)
-		return m, m.deviceFlowModel.Init()
+		m.currentView = viewBrowserLogin
+		m.browserLoginModel = NewBrowserLoginModel(m.authService, nil)
+		return m, m.browserLoginModel.Init()
 
 	case "signup":
 		m.currentView = viewRegister
@@ -500,14 +496,9 @@ func (m ShellModel) handleCommand(cmdName string) (tea.Model, tea.Cmd) {
 
 // Sub-model update handlers
 
-func (m ShellModel) updateDeviceFlow(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if msg.String() == "esc" {
-			m.currentView = viewShell
-			return m, m.commandInput.Focus()
-		}
-	case deviceFlowSuccessMsg:
+func (m ShellModel) updateBrowserLogin(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg.(type) {
+	case browserLoginSuccessMsg:
 		m.currentView = viewShell
 		m.output = ""
 		m.outputType = ""
@@ -516,42 +507,10 @@ func (m ShellModel) updateDeviceFlow(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(m.commandInput.Focus(), cmd)
 	}
 
-	newModel, cmd := m.deviceFlowModel.Update(msg)
-	m.deviceFlowModel = newModel.(DeviceFlowModel)
+	newModel, cmd := m.browserLoginModel.Update(msg)
+	m.browserLoginModel = newModel.(BrowserLoginModel)
 
-	if m.deviceFlowModel.quitting {
-		m.currentView = viewShell
-		return m, m.commandInput.Focus()
-	}
-
-	return m, cmd
-}
-
-func (m ShellModel) updateLogin(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// Check for escape or success
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if msg.String() == "esc" {
-			m.currentView = viewShell
-			return m, m.commandInput.Focus()
-		}
-	case loginSuccessMsg:
-		m.currentView = viewShell
-		m.output = ""
-		m.outputType = ""
-		m.commandInput.SetAuth(true, m.getUserRole())
-		cmd := m.startDashboardFetch()
-		return m, tea.Batch(m.commandInput.Focus(), cmd)
-	case loginErrorMsg:
-		// Let the login model handle displaying the error
-	}
-
-	// Update login model
-	newModel, cmd := m.loginModel.Update(msg)
-	m.loginModel = newModel.(LoginModel)
-
-	// Check if quitting (user pressed ctrl+c)
-	if m.loginModel.quitting {
+	if m.browserLoginModel.quitting {
 		m.currentView = viewShell
 		return m, m.commandInput.Focus()
 	}
@@ -900,10 +859,8 @@ func (m ShellModel) View() string {
 
 	// Render sub-model if active
 	switch m.currentView {
-	case viewDeviceFlow:
-		return m.deviceFlowModel.View()
-	case viewLogin:
-		return m.loginModel.View()
+	case viewBrowserLogin:
+		return m.browserLoginModel.View()
 	case viewRegister:
 		return m.registerModel.View()
 	case viewStandupSubmit:
@@ -1304,4 +1261,3 @@ func (m ShellModel) renderUnauthDashboard() string {
 
 	return buildBoxedDashboard(title, leftLines, rightLines, boxWidth, mutedColor)
 }
-
