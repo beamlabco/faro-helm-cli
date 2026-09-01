@@ -29,7 +29,7 @@ type AcceptInvitationResponse struct {
 }
 
 // AcceptInvitation joins a workspace via an invitation token.
-func (c *AuthClient) AcceptInvitation(req *AcceptInvitationRequest) (*AcceptInvitationResponse, error) {
+func (c *Client) AcceptInvitation(req *AcceptInvitationRequest) (*AcceptInvitationResponse, error) {
 	var result AcceptInvitationResponse
 	resp, err := c.http.R().
 		SetBody(req).

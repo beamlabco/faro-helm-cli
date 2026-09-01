@@ -36,15 +36,11 @@ type Auth struct {
 }
 
 type API struct {
-	BaseURL     string `mapstructure:"base_url"`
-	AuthBaseURL string `mapstructure:"auth_base_url"`
+	BaseURL string `mapstructure:"base_url"`
 }
 
 // DefaultBaseURL is set at build time via ldflags, or overridden by FARO_HELM_API_URL env var.
 var DefaultBaseURL = "http://localhost:3001"
-
-// DefaultAuthBaseURL is set at build time via ldflags, or overridden by FARO_AUTH_API_URL env var.
-var DefaultAuthBaseURL = "http://localhost:3000"
 
 var (
 	configDir  string
@@ -73,13 +69,8 @@ func Load() (*Config, error) {
 		baseURL = envURL
 	}
 
-	authBaseURL := DefaultAuthBaseURL
-	if envURL := os.Getenv("FARO_AUTH_API_URL"); envURL != "" {
-		authBaseURL = envURL
-	}
-
 	if _, err := os.Stat(configFile); os.IsNotExist(err) {
-		return &Config{API: &API{BaseURL: baseURL, AuthBaseURL: authBaseURL}}, nil
+		return &Config{API: &API{BaseURL: baseURL}}, nil
 	}
 
 	viper.SetConfigFile(configFile)
@@ -99,7 +90,6 @@ func Load() (*Config, error) {
 		cfg.API = &API{}
 	}
 	cfg.API.BaseURL = baseURL
-	cfg.API.AuthBaseURL = authBaseURL
 
 	return &cfg, nil
 }

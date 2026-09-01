@@ -4,15 +4,12 @@ BINARY_NAME=faro
 BUILD_DIR=bin
 
 DEV_API_URL=http://localhost:3001
-STAGING_API_URL=http://helm-faro.beamlab.dev
+STAGING_API_URL=https://api-faro-helm.beamlab.dev
 PROD_API_URL=https://api.helm.farohelm.com
-DEV_AUTH_URL=http://localhost:3000
-STAGING_AUTH_URL=https://auth-faro.beamlab.dev
-PROD_AUTH_URL=https://auth.farohelm.com
 
-LDFLAGS_DEV=-ldflags "-X main.defaultBaseURL=$(DEV_API_URL) -X main.defaultAuthBaseURL=$(DEV_AUTH_URL)"
-LDFLAGS_STAGING=-ldflags "-X main.defaultBaseURL=$(STAGING_API_URL) -X main.defaultAuthBaseURL=$(STAGING_AUTH_URL)"
-LDFLAGS_PROD=-ldflags "-X main.defaultBaseURL=$(PROD_API_URL) -X main.defaultAuthBaseURL=$(PROD_AUTH_URL)"
+LDFLAGS_DEV=-ldflags "-X main.defaultBaseURL=$(DEV_API_URL)"
+LDFLAGS_STAGING=-ldflags "-X main.defaultBaseURL=$(STAGING_API_URL)"
+LDFLAGS_PROD=-ldflags "-X main.defaultBaseURL=$(PROD_API_URL)"
 
 build:
 	@echo "Building $(BINARY_NAME) (dev)..."
@@ -70,7 +67,7 @@ build-all:
 help:
 	@echo "Faro Helm CLI — Makefile commands:"
 	@echo "  make build         Build (dev → localhost:3001)"
-	@echo "  make build-staging Build (staging → helm-faro.beamlab.dev)"
+	@echo "  make build-staging Build (staging → api-faro-helm.beamlab.dev)"
 	@echo "  make build-prod    Build (production)"
 	@echo "  make run           Run directly (dev)"
 	@echo "  make run-staging   Run directly (staging)"

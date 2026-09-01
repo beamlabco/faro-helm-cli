@@ -1,7 +1,9 @@
 # faro-helm-cli
 
 Go CLI for **Faro Helm** — the `faro` binary. Built with Bubble Tea (TUI).
-Talks to `faro-helm-api` and `faro-auth-api` over REST. All endpoints use the `/api/v1/` prefix.
+Talks to `faro-helm-api` over REST — that includes auth (`/api/v1/auth/*`), which
+`faro-helm-api` now implements natively; there is no separate auth service.
+All endpoints use the `/api/v1/` prefix.
 
 ## Binary
 
@@ -17,23 +19,14 @@ Config stored at `~/.faro-helm/config.yaml`.
 | Variable | Default | Purpose |
 |---|---|---|
 | `FARO_HELM_API_URL` | `http://localhost:3001` | Helm API base URL (overrides build-time ldflag) |
-| `FARO_AUTH_API_URL` | `http://localhost:3000` | Auth API base URL (overrides build-time ldflag) |
 
-Helm calls go to `{baseURL}/api/v1/*`. Auth is split: `/login` uses OAuth 2.0 Authorization Code + PKCE against `{authBaseURL}/oauth/*` (root-level, unversioned); register/join/change-password/me still use the legacy `{authBaseURL}/api/v1/auth/*` endpoints, unchanged until those get their own migration.
-
-## Login (`/login`)
-
-`faro-helm-cli` is a registered public OAuth 2.0 client (`faro-helm-cli`, no client secret — PKCE instead). `/login` opens the system browser to `{authBaseURL}/oauth/authorize`, where the user actually enters their email/password (the CLI never sees the password) — a local loopback server on an ephemeral port catches the redirect, and the terminal shows the URL as a manual fallback in case auto-open fails.
-
-There is no device-code/browserless flow — the CLI is assumed to always run somewhere a browser is reachable, so Authorization Code + PKCE covers every case with one flow. Package `internal/oauthflow` is the framework-free core: PKCE generation, the loopback callback server, authorize-URL building, and cross-platform browser launching; `internal/auth.Service.BeginBrowserLogin`/`CompleteBrowserLogin` wire it to token exchange and config persistence; `internal/ui.BrowserLoginModel` is the Bubble Tea screen.
-
-`internal/oauthflow` has unit tests (including a real local HTTP server exercised over the network, run with `-race`); `internal/api`'s token-exchange call is tested against an `httptest.Server`. The Bubble Tea layer itself isn't unit tested, matching this repo's existing convention for `ui/*.go`.
+All calls — auth and everything else — go to `{baseURL}/api/v1/*`.
 
 ## Commands
 
 ```bash
 make build         # build ./bin/faro (dev → localhost:3001)
-make build-staging # build (→ helm-faro.beamlab.dev)
+make build-staging # build (→ api-faro-helm.beamlab.dev)
 make build-prod    # build (→ api.helm.farohelm.com)
 make run           # go run (dev)
 make run-staging   # go run (staging)
@@ -50,9 +43,8 @@ go fmt ./...
 cmd/faro/main.go        entry point — wires services, starts Bubble Tea program
 internal/
 ├── config/             loads ~/.faro-helm/config.yaml, FARO_HELM_API_URL env
-├── api/                HTTP client (resty) for all API calls
-├── oauthflow/          PKCE, loopback callback server, authorize-URL building, browser launch — no Bubble Tea or config dependency
-├── auth/               login (browser + PKCE), logout, register, join
+├── api/                HTTP client (resty) for all API calls, including /api/v1/auth/*
+├── auth/               login, logout, register, join, device flow
 ├── standup/            submit, list, history
 ├── attendance/         checkin, checkout, today, history
 ├── leave/              request (leave types + quota lookup), list, cancel

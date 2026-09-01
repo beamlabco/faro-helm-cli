@@ -17,17 +17,13 @@ import (
 )
 
 var (
-	version             = "dev"
-	defaultBaseURL      = "http://localhost:3001"
-	defaultAuthBaseURL  = "http://localhost:3000"
+	version        = "dev"
+	defaultBaseURL = "http://localhost:3001"
 )
 
 func main() {
 	if defaultBaseURL != "" {
 		config.DefaultBaseURL = defaultBaseURL
-	}
-	if defaultAuthBaseURL != "" {
-		config.DefaultAuthBaseURL = defaultAuthBaseURL
 	}
 
 	cfg, err := config.Load()
@@ -38,22 +34,17 @@ func main() {
 
 	apiClient := api.NewClientFromConfig(cfg)
 
-	authAPIURL := cfg.API.AuthBaseURL
-	authAPIClient := api.NewAuthClient(authAPIURL)
-
-	authService := auth.NewService(apiClient, authAPIClient, cfg)
+	authService := auth.NewService(apiClient, cfg)
 	standupService := standup.NewService(apiClient)
 	attendanceService := attendance.NewService(apiClient)
 	leaveService := leave.NewService(apiClient)
-	userService := user.NewService(apiClient, authAPIClient, func() string {
+	userService := user.NewService(apiClient, func() string {
 		if cfg.Auth == nil {
 			return ""
 		}
 		return cfg.Auth.Token
 	})
 	projectService := project.NewService(apiClient)
-
-	ui.PrintLogo()
 
 	shellModel := ui.NewShellModel(authService, standupService, attendanceService, leaveService, userService, projectService, cfg)
 	p := tea.NewProgram(shellModel, tea.WithAltScreen())
