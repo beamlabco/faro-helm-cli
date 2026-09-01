@@ -19,7 +19,15 @@ Config stored at `~/.faro-helm/config.yaml`.
 | `FARO_HELM_API_URL` | `http://localhost:3001` | Helm API base URL (overrides build-time ldflag) |
 | `FARO_AUTH_API_URL` | `http://localhost:3000` | Auth API base URL (overrides build-time ldflag) |
 
-Auth calls go to `{authBaseURL}/api/v1/auth/*`, helm calls go to `{baseURL}/api/v1/*`.
+Helm calls go to `{baseURL}/api/v1/*`. Auth is split: `/login` uses OAuth 2.0 Authorization Code + PKCE against `{authBaseURL}/oauth/*` (root-level, unversioned); register/join/change-password/me still use the legacy `{authBaseURL}/api/v1/auth/*` endpoints, unchanged until those get their own migration.
+
+## Login (`/login`)
+
+`faro-helm-cli` is a registered public OAuth 2.0 client (`faro-helm-cli`, no client secret — PKCE instead). `/login` opens the system browser to `{authBaseURL}/oauth/authorize`, where the user actually enters their email/password (the CLI never sees the password) — a local loopback server on an ephemeral port catches the redirect, and the terminal shows the URL as a manual fallback in case auto-open fails.
+
+There is no device-code/browserless flow — the CLI is assumed to always run somewhere a browser is reachable, so Authorization Code + PKCE covers every case with one flow. Package `internal/oauthflow` is the framework-free core: PKCE generation, the loopback callback server, authorize-URL building, and cross-platform browser launching; `internal/auth.Service.BeginBrowserLogin`/`CompleteBrowserLogin` wire it to token exchange and config persistence; `internal/ui.BrowserLoginModel` is the Bubble Tea screen.
+
+`internal/oauthflow` has unit tests (including a real local HTTP server exercised over the network, run with `-race`); `internal/api`'s token-exchange call is tested against an `httptest.Server`. The Bubble Tea layer itself isn't unit tested, matching this repo's existing convention for `ui/*.go`.
 
 ## Commands
 
@@ -43,7 +51,8 @@ cmd/faro/main.go        entry point — wires services, starts Bubble Tea progra
 internal/
 ├── config/             loads ~/.faro-helm/config.yaml, FARO_HELM_API_URL env
 ├── api/                HTTP client (resty) for all API calls
-├── auth/               login, logout, register, join
+├── oauthflow/          PKCE, loopback callback server, authorize-URL building, browser launch — no Bubble Tea or config dependency
+├── auth/               login (browser + PKCE), logout, register, join
 ├── standup/            submit, list, history
 ├── attendance/         checkin, checkout, today, history
 ├── leave/              request (leave types + quota lookup), list, cancel
