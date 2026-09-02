@@ -27,7 +27,7 @@ All calls — auth and everything else — go to `{baseURL}/api/v1/*`.
 ```bash
 make build         # build ./bin/faro (dev → localhost:3001)
 make build-staging # build (→ api-faro-helm.beamlab.dev)
-make build-prod    # build (→ api.helm.farohelm.com)
+make build-prod    # build (→ api.farohelm.com)
 make run           # go run (dev)
 make run-staging   # go run (staging)
 make run-prod      # go run (production)

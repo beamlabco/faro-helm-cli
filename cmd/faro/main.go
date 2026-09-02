@@ -22,6 +22,11 @@ var (
 )
 
 func main() {
+	if len(os.Args) > 1 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
+		fmt.Println(version)
+		return
+	}
+
 	if defaultBaseURL != "" {
 		config.DefaultBaseURL = defaultBaseURL
 	}

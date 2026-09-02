@@ -10,7 +10,7 @@ builds:
   - main: ./cmd/faro
     binary: faro
     ldflags:
-      - -s -w -X main.version={{.Version}} -X main.defaultBaseURL=https://api.helm.farohelm.com
+      - -s -w -X main.version={{.Version}} -X main.defaultBaseURL=https://api.farohelm.com
     goos:
       - darwin
       - linux
@@ -52,4 +52,4 @@ brews:
     install: |
       bin.install "faro"
     test: |
-      assert_match version.to_s, shell_output("#{bin}/faro --version 2>&1", 1)
+      assert_match version.to_s, shell_output("#{bin}/faro --version")

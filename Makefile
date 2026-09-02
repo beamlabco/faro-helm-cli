@@ -5,7 +5,7 @@ BUILD_DIR=bin
 
 DEV_API_URL=http://localhost:3001
 STAGING_API_URL=https://api-faro-helm.beamlab.dev
-PROD_API_URL=https://api.helm.farohelm.com
+PROD_API_URL=https://api.farohelm.com
 
 LDFLAGS_DEV=-ldflags "-X main.defaultBaseURL=$(DEV_API_URL)"
 LDFLAGS_STAGING=-ldflags "-X main.defaultBaseURL=$(STAGING_API_URL)"
