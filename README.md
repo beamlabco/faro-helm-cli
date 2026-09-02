@@ -11,6 +11,7 @@ This is an early release — rough edges expected. Bug reports welcome.
 ```bash
 brew tap beamlabco/tap
 brew install faro
+faro --version
 ```
 
 > **Heads up:** if `brew install` fails with `Your Command Line Tools are too outdated`, update them first — System Settings → General → Software Update, or:
@@ -44,12 +45,12 @@ Invoke-WebRequest -Uri https://github.com/beamlabco/faro-helm-cli/releases/lates
 Expand-Archive faro.zip -DestinationPath .
 .\faro.exe --version
 ```
-Windows arm64 isn't built yet — see "What's not in this release yet" below.
-
-Confirm it worked (macOS/Linux):
+Using Git Bash? Add the directory containing `faro.exe` to your `PATH` in `~/.bashrc` to run `faro` from anywhere; this only applies inside Git Bash:
 ```bash
-faro --version
+export PATH=$PATH:/c/Users/me/bin   # replace with wherever you unzipped faro.exe
 ```
+
+Windows arm64 isn't built yet — see "What's not in this release yet" below.
 
 ## First run
 
