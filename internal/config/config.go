@@ -42,24 +42,34 @@ type API struct {
 // DefaultBaseURL is set at build time via ldflags, or overridden by FARO_HELM_API_URL env var.
 var DefaultBaseURL = "http://localhost:3001"
 
-var (
-	configDir  string
-	configFile string
-)
+// configDirOverride, when set, takes precedence over the user's home
+// directory. Intended for use by tests — see SetConfigDirForTesting.
+var configDirOverride string
 
-func init() {
+// SetConfigDirForTesting overrides the directory used by Load/Save/GetConfigDir/
+// GetConfigFile. For use in tests only — call with "" to restore the default.
+func SetConfigDirForTesting(dir string) {
+	configDirOverride = dir
+}
+
+func resolveConfigDir() string {
+	if configDirOverride != "" {
+		return configDirOverride
+	}
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		panic(fmt.Sprintf("failed to get user home directory: %v", err))
 	}
-	configDir = filepath.Join(homeDir, ".faro-helm")
-	configFile = filepath.Join(configDir, "config.yaml")
+	return filepath.Join(homeDir, ".faro-helm")
 }
 
-func GetConfigDir() string  { return configDir }
-func GetConfigFile() string { return configFile }
+func GetConfigDir() string  { return resolveConfigDir() }
+func GetConfigFile() string { return filepath.Join(resolveConfigDir(), "config.yaml") }
 
 func Load() (*Config, error) {
+	configDir := resolveConfigDir()
+	configFile := GetConfigFile()
+
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create config directory: %w", err)
 	}
@@ -73,6 +83,11 @@ func Load() (*Config, error) {
 		return &Config{API: &API{BaseURL: baseURL}}, nil
 	}
 
+	// viper is a global singleton — reset it so a stale Set() from an
+	// earlier Save()/Load() cycle (e.g. across tests using different
+	// SetConfigDirForTesting dirs in the same process) can't leak in ahead
+	// of what's actually on disk.
+	viper.Reset()
 	viper.SetConfigFile(configFile)
 	viper.SetConfigType("yaml")
 	viper.SetDefault("api.base_url", baseURL)
@@ -95,20 +110,64 @@ func Load() (*Config, error) {
 }
 
 func Save(cfg *Config) error {
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := os.MkdirAll(resolveConfigDir(), 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	viper.Set("user", cfg.User)
-	viper.Set("organization", cfg.Organization)
-	viper.Set("auth", cfg.Auth)
+	// viper is a global singleton — reset it first so a previously-read or
+	// previously-written config (e.g. a different SetConfigDirForTesting
+	// dir, or another config.Load() earlier in this process) can't leak
+	// into what gets written here.
+	viper.Reset()
+
+	// viper.WriteConfigAs serializes Set() values by lowercasing Go field
+	// names — it does not consult the mapstructure tags Unmarshal reads by
+	// (e.g. RefreshToken would round-trip as "refreshtoken", not
+	// "refresh_token"). Write explicit maps keyed to match those tags.
+	viper.Set("user", userToMap(cfg.User))
+	viper.Set("organization", organizationToMap(cfg.Organization))
+	viper.Set("auth", authToMap(cfg.Auth))
 	viper.Set("api", nil)
 
-	if err := viper.WriteConfigAs(configFile); err != nil {
+	if err := viper.WriteConfigAs(GetConfigFile()); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
 	return nil
+}
+
+func authToMap(a *Auth) map[string]any {
+	if a == nil {
+		return nil
+	}
+	return map[string]any{
+		"token":         a.Token,
+		"refresh_token": a.RefreshToken,
+	}
+}
+
+func userToMap(u *User) map[string]any {
+	if u == nil {
+		return nil
+	}
+	return map[string]any{
+		"id":         u.ID,
+		"account_id": u.AccountID,
+		"email":      u.Email,
+		"name":       u.Name,
+		"role":       u.Role,
+	}
+}
+
+func organizationToMap(o *Organization) map[string]any {
+	if o == nil {
+		return nil
+	}
+	return map[string]any{
+		"id":     o.ID,
+		"name":   o.Name,
+		"status": o.Status,
+	}
 }
 
 func (c *Config) IsAuthenticated() bool {
