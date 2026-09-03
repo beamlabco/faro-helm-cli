@@ -21,7 +21,7 @@ func NewService(client *api.Client) *Service {
 }
 
 // Submit submits or updates a standup
-func (s *Service) Submit(projectID string, date, yesterday, today, blockers string) (*api.StandupResponse, error) {
+func (s *Service) Submit(teamID string, date, yesterday, today, blockers string) (*api.StandupResponse, error) {
 	// Validate date format
 	if date == "" {
 		date = time.Now().Format("2006-01-02")
@@ -43,7 +43,7 @@ func (s *Service) Submit(projectID string, date, yesterday, today, blockers stri
 
 	req := &api.StandupRequest{
 		Date:      date,
-		ProjectID: projectID,
+		TeamID:    teamID,
 		Yesterday: yesterday,
 		Today:     today,
 		Blockers:  blockers,
@@ -57,7 +57,7 @@ func (s *Service) Submit(projectID string, date, yesterday, today, blockers stri
 	return resp.Standup, nil
 }
 
-// GetToday retrieves the current user's standups submitted today (across projects).
+// GetToday retrieves the current user's standups submitted today (across teams).
 func (s *Service) GetToday() ([]*api.StandupResponse, error) {
 	resp, err := s.client.GetMyStandups("today", 100, 0)
 	if err != nil {

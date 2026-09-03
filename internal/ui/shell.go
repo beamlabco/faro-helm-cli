@@ -12,7 +12,7 @@ import (
 	"github.com/beamlabco/faro-helm-cli/internal/auth"
 	"github.com/beamlabco/faro-helm-cli/internal/config"
 	"github.com/beamlabco/faro-helm-cli/internal/leave"
-	"github.com/beamlabco/faro-helm-cli/internal/project"
+	"github.com/beamlabco/faro-helm-cli/internal/team"
 	"github.com/beamlabco/faro-helm-cli/internal/standup"
 	"github.com/beamlabco/faro-helm-cli/internal/user"
 )
@@ -36,8 +36,8 @@ const (
 	viewLeaveRequest
 	viewLeaveList
 	viewLeaveCancel
+	viewPeopleList
 	viewTeamList
-	viewProjectList
 	viewChangePassword
 )
 
@@ -65,7 +65,7 @@ type ShellModel struct {
 	attendanceService *attendance.Service
 	leaveService      *leave.Service
 	userService       *user.Service
-	projectService    *project.Service
+	teamService    *team.Service
 	config            *config.Config
 
 	// Shell components
@@ -90,8 +90,8 @@ type ShellModel struct {
 	leaveRequestModel        LeaveRequestModel
 	leaveListModel           LeaveListModel
 	leaveCancelModel         LeaveCancelModel
-	teamListModel            TeamListModel
-	projectListModel         ProjectListModel
+	peopleListModel            PeopleListModel
+	teamListModel         TeamListModel
 	changePasswordModel      ChangePasswordModel
 
 	// Output area
@@ -115,7 +115,7 @@ type ShellModel struct {
 }
 
 // NewShellModel creates a new shell model
-func NewShellModel(authService *auth.Service, standupService *standup.Service, attendanceService *attendance.Service, leaveService *leave.Service, userService *user.Service, projectService *project.Service, cfg *config.Config) ShellModel {
+func NewShellModel(authService *auth.Service, standupService *standup.Service, attendanceService *attendance.Service, leaveService *leave.Service, userService *user.Service, teamService *team.Service, cfg *config.Config) ShellModel {
 	registry := NewCommandRegistry()
 	isAuth := authService.IsAuthenticated()
 	role := ""
@@ -131,7 +131,7 @@ func NewShellModel(authService *auth.Service, standupService *standup.Service, a
 		attendanceService: attendanceService,
 		leaveService:      leaveService,
 		userService:       userService,
-		projectService:    projectService,
+		teamService:    teamService,
 		config:            cfg,
 		commandInput:      NewCommandInput(registry, isAuth, role),
 		registry:          registry,
@@ -272,10 +272,10 @@ func (m ShellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateLeaveList(msg)
 	case viewLeaveCancel:
 		return m.updateLeaveCancel(msg)
+	case viewPeopleList:
+		return m.updatePeopleList(msg)
 	case viewTeamList:
 		return m.updateTeamList(msg)
-	case viewProjectList:
-		return m.updateProjectList(msg)
 	case viewChangePassword:
 		return m.updateChangePassword(msg)
 	}
@@ -397,16 +397,16 @@ func (m ShellModel) handleCommand(cmdName string) (tea.Model, tea.Cmd) {
 		}
 		return m, m.commandInput.Focus()
 
-	// Project commands
-	case "project":
-		m.currentView = viewProjectList
-		m.projectListModel = NewProjectListModel(m.projectService)
-		return m, m.projectListModel.Init()
+	// Team commands
+	case "team":
+		m.currentView = viewTeamList
+		m.teamListModel = NewTeamListModel(m.teamService)
+		return m, m.teamListModel.Init()
 
 	// Standup commands
 	case "standup":
 		m.currentView = viewStandupSubmit
-		m.standupSubmitModel = NewStandupSubmitModel(m.standupService, m.projectService, nil)
+		m.standupSubmitModel = NewStandupSubmitModel(m.standupService, m.teamService, nil)
 		return m, m.standupSubmitModel.Init()
 
 	case "standup today":
@@ -460,11 +460,11 @@ func (m ShellModel) handleCommand(cmdName string) (tea.Model, tea.Cmd) {
 		m.leaveCancelModel = NewLeaveCancelModel(m.leaveService, userID)
 		return m, m.leaveCancelModel.Init()
 
-	// Team
-	case "team":
-		m.currentView = viewTeamList
-		m.teamListModel = NewTeamListModel(m.userService)
-		return m, m.teamListModel.Init()
+	// People
+	case "people":
+		m.currentView = viewPeopleList
+		m.peopleListModel = NewPeopleListModel(m.userService)
+		return m, m.peopleListModel.Init()
 
 	case "password":
 		m.currentView = viewChangePassword
@@ -833,6 +833,26 @@ func (m ShellModel) updateLeaveCancel(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m ShellModel) updatePeopleList(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		if msg.String() == "esc" || msg.String() == "q" {
+			m.currentView = viewShell
+			return m, m.commandInput.Focus()
+		}
+	}
+
+	newModel, cmd := m.peopleListModel.Update(msg)
+	m.peopleListModel = newModel.(PeopleListModel)
+
+	if m.peopleListModel.shouldGoBack {
+		m.currentView = viewShell
+		return m, m.commandInput.Focus()
+	}
+
+	return m, cmd
+}
+
 func (m ShellModel) updateTeamList(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -846,26 +866,6 @@ func (m ShellModel) updateTeamList(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.teamListModel = newModel.(TeamListModel)
 
 	if m.teamListModel.shouldGoBack {
-		m.currentView = viewShell
-		return m, m.commandInput.Focus()
-	}
-
-	return m, cmd
-}
-
-func (m ShellModel) updateProjectList(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if msg.String() == "esc" || msg.String() == "q" {
-			m.currentView = viewShell
-			return m, m.commandInput.Focus()
-		}
-	}
-
-	newModel, cmd := m.projectListModel.Update(msg)
-	m.projectListModel = newModel.(ProjectListModel)
-
-	if m.projectListModel.shouldGoBack {
 		m.currentView = viewShell
 		return m, m.commandInput.Focus()
 	}
@@ -928,10 +928,10 @@ func (m ShellModel) View() string {
 		return m.leaveListModel.View()
 	case viewLeaveCancel:
 		return m.leaveCancelModel.View()
+	case viewPeopleList:
+		return m.peopleListModel.View()
 	case viewTeamList:
 		return m.teamListModel.View()
-	case viewProjectList:
-		return m.projectListModel.View()
 	case viewChangePassword:
 		return m.changePasswordModel.View()
 	}
@@ -1001,18 +1001,18 @@ func (m ShellModel) renderHelp() string {
 	b.WriteString("Available Commands:\n\n")
 
 	categories := m.registry.GetByCategory(m.authService.IsAuthenticated(), m.getUserRole())
-	categoryOrder := []string{"auth", "standup", "attendance", "leave", "project", "team", "account", "utility"}
+	categoryOrder := []string{"auth", "standup", "attendance", "leave", "team", "people", "account", "utility"}
 	// When authenticated, auth commands (logout) go near the end
 	if m.authService.IsAuthenticated() {
-		categoryOrder = []string{"standup", "attendance", "leave", "project", "team", "account", "auth", "utility"}
+		categoryOrder = []string{"standup", "attendance", "leave", "team", "people", "account", "auth", "utility"}
 	}
 	categoryNames := map[string]string{
 		"auth":       "Authentication",
 		"standup":    "Standups",
 		"attendance": "Attendance",
 		"leave":      "Leaves",
-		"project":    "Projects",
-		"team":       "Team",
+		"team":       "Teams",
+		"people":     "People",
 		"account":    "Account",
 		"utility":    "Utility",
 	}

@@ -46,11 +46,11 @@ func NewCommandRegistry() *CommandRegistry {
 			{Name: "leave list", Aliases: []string{"leaves"}, Description: "View team leaves", Category: "leave", RequiresAuth: true},
 			{Name: "leave cancel", Aliases: nil, Description: "Cancel a pending leave", Category: "leave", RequiresAuth: true},
 
-			// Projects
-			{Name: "project", Aliases: []string{"projects"}, Description: "View your projects", Category: "project", RequiresAuth: true},
+			// Teams
+			{Name: "team", Aliases: []string{"teams"}, Description: "View your teams", Category: "team", RequiresAuth: true},
 
-			// Team
-			{Name: "team", Aliases: []string{"members"}, Description: "View team members and roles", Category: "team", RequiresAuth: true},
+			// People
+			{Name: "people", Aliases: []string{"members"}, Description: "View workspace people and roles", Category: "people", RequiresAuth: true},
 
 			// Account
 			{Name: "password", Aliases: []string{"change-password"}, Description: "Change your password", Category: "account", RequiresAuth: true},

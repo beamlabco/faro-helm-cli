@@ -2,8 +2,8 @@ package api
 
 import "time"
 
-// ProjectResponse represents a project in API response
-type ProjectResponse struct {
+// TeamResponse represents a team in API response
+type TeamResponse struct {
 	ID          string    `json:"id"`
 	WorkspaceID string    `json:"workspaceId"`
 	Name        string    `json:"name"`
@@ -12,16 +12,16 @@ type ProjectResponse struct {
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
-type projectsListResponse struct {
-	Projects []*ProjectResponse `json:"projects"`
+type teamsListResponse struct {
+	Teams []*TeamResponse `json:"teams"`
 }
 
-// GetMyProjects retrieves the current user's projects
-func (c *Client) GetMyProjects() ([]*ProjectResponse, error) {
-	var result projectsListResponse
+// GetMyTeams retrieves the current user's teams
+func (c *Client) GetMyTeams() ([]*TeamResponse, error) {
+	var result teamsListResponse
 	resp, err := c.http.R().
 		SetResult(&result).
-		Get("/api/v1/projects/my")
+		Get("/api/v1/teams/my")
 
 	if err != nil {
 		return nil, err
@@ -31,5 +31,5 @@ func (c *Client) GetMyProjects() ([]*ProjectResponse, error) {
 		return nil, parseError(resp)
 	}
 
-	return result.Projects, nil
+	return result.Teams, nil
 }

@@ -48,8 +48,8 @@ internal/
 ├── standup/            submit, list, history
 ├── attendance/         checkin, checkout, today, history
 ├── leave/              request (leave types + quota lookup), list, cancel
-├── project/            list (own projects)
-├── user/               team list, password
+├── team/               list (own teams)
+├── user/               people list, password
 └── ui/                 Bubble Tea screens + styles
     ├── shell.go        main REPL shell + dashboard
     ├── styles.go       teal color palette (#1D9E75 primary, #5DCAA5 secondary)
@@ -57,7 +57,7 @@ internal/
     └── *.go            one file per screen
 ```
 
-This is a **member/self-service CLI only** — the same scope as `faro-helm-app`. It exposes no primary/manager administration (org settings, invitations, role changes, project CRUD, project membership, office-hours overrides, password resets, or leave review). Those remain server-side in `faro-helm-api` for other clients; this binary simply doesn't expose them.
+This is a **member/self-service CLI only** — the same scope as `faro-helm-app`. It exposes no primary/manager administration (org settings, invitations, role changes, team CRUD, team membership, office-hours overrides, password resets, or leave review). Those remain server-side in `faro-helm-api` for other clients; this binary simply doesn't expose them.
 
 ## Module
 
@@ -70,7 +70,7 @@ admin/manager tier in this CLI.
 
 `standup`, `standup today`, `standup history`, `checkin`, `checkout`,
 `attendance today`, `attendance history`, `leave`, `leave list`,
-`leave cancel`, `project`, `team`, `password`, `whoami`, `help`, `clear`, `quit`
+`leave cancel`, `team`, `people`, `password`, `whoami`, `help`, `clear`, `quit`
 
 There is no standalone `attendance` (mark) command — `checkin`/`checkout` are the only
 way to record attendance; `faro-helm-api` dropped the generic mark-attendance endpoint.

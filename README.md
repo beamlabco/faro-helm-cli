@@ -75,8 +75,8 @@ leave               request leave (shows your live quota/balance first)
 leave list
 leave cancel
 
-project             your projects
-team                your team
+team                your teams
+people              workspace people
 password            change password
 whoami
 help
@@ -84,7 +84,7 @@ clear
 quit
 ```
 
-Every command here is available to every logged-in user — there's no separate admin/manager tier in the CLI. Manager stuff (approvals, project setup, etc.) still lives in the web app for now.
+Every command here is available to every logged-in user — there's no separate admin/manager tier in the CLI. Manager stuff (approvals, team setup, etc.) still lives in the web app for now.
 
 ## Config
 

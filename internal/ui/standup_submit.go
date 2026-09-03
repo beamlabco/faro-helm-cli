@@ -9,14 +9,14 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/beamlabco/faro-helm-cli/internal/api"
-	"github.com/beamlabco/faro-helm-cli/internal/project"
 	"github.com/beamlabco/faro-helm-cli/internal/standup"
+	"github.com/beamlabco/faro-helm-cli/internal/team"
 )
 
 // StandupSubmitModel represents the standup submission form
 type StandupSubmitModel struct {
 	standupService *standup.Service
-	projectService *project.Service
+	teamService    *team.Service
 	inputs         []textarea.Model
 	focusedInput   int
 	date           string
@@ -26,11 +26,11 @@ type StandupSubmitModel struct {
 	shouldGoBack   bool
 	onBack         func()
 
-	// Project selection
-	projects       []*api.ProjectResponse
-	selectedProject *api.ProjectResponse
-	projectIdx     int
-	phase          string // "project_select" or "form"
+	// Team selection
+	teams        []*api.TeamResponse
+	selectedTeam *api.TeamResponse
+	teamIdx      int
+	phase        string // "team_select" or "form"
 }
 
 const (
@@ -40,15 +40,15 @@ const (
 )
 
 // NewStandupSubmitModel creates a new standup submission model
-func NewStandupSubmitModel(standupService *standup.Service, projectService *project.Service, onBack func()) StandupSubmitModel {
+func NewStandupSubmitModel(standupService *standup.Service, teamService *team.Service, onBack func()) StandupSubmitModel {
 	m := StandupSubmitModel{
 		standupService: standupService,
-		projectService: projectService,
+		teamService:    teamService,
 		inputs:         make([]textarea.Model, 3),
 		focusedInput:   yesterdayInput,
 		date:           time.Now().Format("2006-01-02"),
 		onBack:         onBack,
-		phase:          "project_select",
+		phase:          "team_select",
 		loading:        true,
 	}
 
@@ -78,39 +78,39 @@ func NewStandupSubmitModel(standupService *standup.Service, projectService *proj
 
 // Init initializes the standup submit model
 func (m StandupSubmitModel) Init() tea.Cmd {
-	return m.fetchProjects()
+	return m.fetchTeams()
 }
 
-func (m *StandupSubmitModel) fetchProjects() tea.Cmd {
+func (m *StandupSubmitModel) fetchTeams() tea.Cmd {
 	return func() tea.Msg {
-		projects, err := m.projectService.GetMyProjects()
+		teams, err := m.teamService.GetMyTeams()
 		if err != nil {
-			return standupProjectsErrorMsg(err.Error())
+			return standupTeamsErrorMsg(err.Error())
 		}
-		return standupProjectsLoadedMsg{projects: projects}
+		return standupTeamsLoadedMsg{teams: teams}
 	}
 }
 
 // Update handles messages
 func (m StandupSubmitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case standupProjectsLoadedMsg:
+	case standupTeamsLoadedMsg:
 		m.loading = false
-		m.projects = msg.projects
-		if len(m.projects) == 1 {
-			// Auto-select single project
-			m.selectedProject = m.projects[0]
+		m.teams = msg.teams
+		if len(m.teams) == 1 {
+			// Auto-select single team
+			m.selectedTeam = m.teams[0]
 			m.phase = "form"
 			m.inputs[yesterdayInput].Focus()
 			return m, textarea.Blink
 		}
-		if len(m.projects) == 0 {
-			m.errorMsg = "No projects found. Contact your admin."
+		if len(m.teams) == 0 {
+			m.errorMsg = "No teams found. Contact your admin."
 			return m, nil
 		}
 		return m, nil
 
-	case standupProjectsErrorMsg:
+	case standupTeamsErrorMsg:
 		m.loading = false
 		m.errorMsg = string(msg)
 		return m, nil
@@ -121,9 +121,9 @@ func (m StandupSubmitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case "esc":
-			if m.phase == "form" && len(m.projects) > 1 {
-				m.phase = "project_select"
-				m.selectedProject = nil
+			if m.phase == "form" && len(m.teams) > 1 {
+				m.phase = "team_select"
+				m.selectedTeam = nil
 				m.errorMsg = ""
 				m.successMsg = ""
 				return m, nil
@@ -132,24 +132,24 @@ func (m StandupSubmitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "up", "k":
-			if m.phase == "project_select" {
-				if m.projectIdx > 0 {
-					m.projectIdx--
+			if m.phase == "team_select" {
+				if m.teamIdx > 0 {
+					m.teamIdx--
 				}
 				return m, nil
 			}
 
 		case "down", "j":
-			if m.phase == "project_select" {
-				if m.projectIdx < len(m.projects)-1 {
-					m.projectIdx++
+			if m.phase == "team_select" {
+				if m.teamIdx < len(m.teams)-1 {
+					m.teamIdx++
 				}
 				return m, nil
 			}
 
 		case "enter":
-			if m.phase == "project_select" && len(m.projects) > 0 {
-				m.selectedProject = m.projects[m.projectIdx]
+			if m.phase == "team_select" && len(m.teams) > 0 {
+				m.selectedTeam = m.teams[m.teamIdx]
 				m.phase = "form"
 				m.inputs[yesterdayInput].Focus()
 				return m, textarea.Blink
@@ -214,12 +214,12 @@ func (m StandupSubmitModel) View() string {
 	if m.loading {
 		b.WriteString(titleStyle.Render("Submit Standup"))
 		b.WriteString("\n\n")
-		b.WriteString(lipgloss.NewStyle().Foreground(mutedColor).Render("Loading projects..."))
+		b.WriteString(lipgloss.NewStyle().Foreground(mutedColor).Render("Loading teams..."))
 		return baseStyle.Render(b.String())
 	}
 
-	if m.phase == "project_select" {
-		b.WriteString(titleStyle.Render("Submit Standup - Select Project"))
+	if m.phase == "team_select" {
+		b.WriteString(titleStyle.Render("Submit Standup - Select Team"))
 		b.WriteString("\n\n")
 
 		if m.errorMsg != "" {
@@ -229,11 +229,11 @@ func (m StandupSubmitModel) View() string {
 			return baseStyle.Render(b.String())
 		}
 
-		for i, p := range m.projects {
-			if i == m.projectIdx {
-				b.WriteString(fmt.Sprintf("  > %s\n", lipgloss.NewStyle().Bold(true).Foreground(primaryColor).Render(p.Name)))
+		for i, t := range m.teams {
+			if i == m.teamIdx {
+				b.WriteString(fmt.Sprintf("  > %s\n", lipgloss.NewStyle().Bold(true).Foreground(primaryColor).Render(t.Name)))
 			} else {
-				b.WriteString(fmt.Sprintf("    %s\n", p.Name))
+				b.WriteString(fmt.Sprintf("    %s\n", t.Name))
 			}
 		}
 
@@ -243,11 +243,11 @@ func (m StandupSubmitModel) View() string {
 	}
 
 	// Form phase
-	projectLabel := ""
-	if m.selectedProject != nil {
-		projectLabel = fmt.Sprintf(" [%s]", m.selectedProject.Name)
+	teamLabel := ""
+	if m.selectedTeam != nil {
+		teamLabel = fmt.Sprintf(" [%s]", m.selectedTeam.Name)
 	}
-	b.WriteString(titleStyle.Render(fmt.Sprintf("Submit Standup - %s%s", m.date, projectLabel)))
+	b.WriteString(titleStyle.Render(fmt.Sprintf("Submit Standup - %s%s", m.date, teamLabel)))
 	b.WriteString("\n\n")
 
 	// Yesterday input
@@ -301,8 +301,8 @@ func (m StandupSubmitModel) View() string {
 	// Help text
 	if !m.loading {
 		helpText := "[Tab] Next field  [Ctrl+S] Submit  [Esc] Back"
-		if len(m.projects) > 1 {
-			helpText = "[Tab] Next field  [Ctrl+S] Submit  [Esc] Change project"
+		if len(m.teams) > 1 {
+			helpText = "[Tab] Next field  [Ctrl+S] Submit  [Esc] Change team"
 		}
 		b.WriteString(helpStyle.Render(helpText))
 	}
@@ -321,10 +321,10 @@ func (m *StandupSubmitModel) handleSubmit() tea.Cmd {
 	m.successMsg = ""
 	m.loading = true
 
-	projectID := m.selectedProject.ID
+	teamID := m.selectedTeam.ID
 
 	return func() tea.Msg {
-		if _, err := m.standupService.Submit(projectID, m.date, yesterday, today, blockers); err != nil {
+		if _, err := m.standupService.Submit(teamID, m.date, yesterday, today, blockers); err != nil {
 			return standupSubmitErrorMsg(err.Error())
 		}
 		return standupSubmitSuccessMsg{}
@@ -334,7 +334,7 @@ func (m *StandupSubmitModel) handleSubmit() tea.Cmd {
 // Message types
 type standupSubmitSuccessMsg struct{}
 type standupSubmitErrorMsg string
-type standupProjectsLoadedMsg struct {
-	projects []*api.ProjectResponse
+type standupTeamsLoadedMsg struct {
+	teams []*api.TeamResponse
 }
-type standupProjectsErrorMsg string
+type standupTeamsErrorMsg string

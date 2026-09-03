@@ -91,9 +91,9 @@ func (m StandupTodayModel) View() string {
 				b.WriteString("\n\n")
 			}
 
-			if s.Project != nil {
-				projectStyle := lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
-				b.WriteString(projectStyle.Render(s.Project.Name))
+			if s.Team != nil {
+				teamStyle := lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+				b.WriteString(teamStyle.Render(s.Team.Name))
 				b.WriteString("\n\n")
 			}
 

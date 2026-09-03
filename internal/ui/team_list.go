@@ -7,29 +7,29 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/beamlabco/faro-helm-cli/internal/api"
-	"github.com/beamlabco/faro-helm-cli/internal/user"
+	"github.com/beamlabco/faro-helm-cli/internal/team"
 )
 
-// TeamListModel represents the team members list view
+// TeamListModel displays the user's teams
 type TeamListModel struct {
-	userService  *user.Service
-	members      []*api.MemberResponse
-	errorMsg     string
+	teamService  *team.Service
+	teams        []*api.TeamResponse
 	loading      bool
+	errorMsg     string
 	shouldGoBack bool
 }
 
 // NewTeamListModel creates a new team list model
-func NewTeamListModel(userService *user.Service) TeamListModel {
+func NewTeamListModel(teamService *team.Service) TeamListModel {
 	return TeamListModel{
-		userService: userService,
+		teamService: teamService,
 		loading:     true,
 	}
 }
 
-// Init initializes the model
+// Init fetches teams
 func (m TeamListModel) Init() tea.Cmd {
-	return m.fetchMembers()
+	return m.fetchTeams()
 }
 
 // Update handles messages
@@ -39,20 +39,14 @@ func (m TeamListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c":
 			return m, tea.Quit
-
 		case "esc", "q":
 			m.shouldGoBack = true
 			return m, nil
-
-		case "r":
-			m.loading = true
-			m.errorMsg = ""
-			return m, m.fetchMembers()
 		}
 
-	case teamListSuccessMsg:
+	case teamListLoadedMsg:
 		m.loading = false
-		m.members = msg.members
+		m.teams = msg.teams
 		return m, nil
 
 	case teamListErrorMsg:
@@ -68,61 +62,55 @@ func (m TeamListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m TeamListModel) View() string {
 	var b strings.Builder
 
-	b.WriteString(titleStyle.Render("Team Members"))
+	b.WriteString(titleStyle.Render("Your Teams"))
 	b.WriteString("\n\n")
 
 	if m.loading {
-		b.WriteString(lipgloss.NewStyle().Foreground(mutedColor).Render("Loading team members..."))
+		b.WriteString(lipgloss.NewStyle().Foreground(mutedColor).Render("Loading teams..."))
 		b.WriteString("\n")
-	} else if m.errorMsg != "" {
+		return baseStyle.Render(b.String())
+	}
+
+	if m.errorMsg != "" {
 		b.WriteString(errorStyle.Render("Error: " + m.errorMsg))
-		b.WriteString("\n")
-	} else if len(m.members) == 0 {
-		b.WriteString(lipgloss.NewStyle().Foreground(mutedColor).Render("No team members found"))
+		b.WriteString("\n\n")
+	}
+
+	if len(m.teams) == 0 {
+		b.WriteString(lipgloss.NewStyle().Foreground(mutedColor).Render("No teams found."))
 		b.WriteString("\n")
 	} else {
-		nameStyle := lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
-		emailStyle := lipgloss.NewStyle().Foreground(mutedColor)
+		for i, t := range m.teams {
+			nameStyle := lipgloss.NewStyle().Bold(true).Foreground(primaryColor)
+			dimStyle := lipgloss.NewStyle().Foreground(mutedColor)
 
-		for i, member := range m.members {
-			if i > 0 {
-				b.WriteString(lipgloss.NewStyle().Foreground(mutedColor).Render(strings.Repeat("─", 50)))
-				b.WriteString("\n")
+			b.WriteString(fmt.Sprintf("  %d. %s", i+1, nameStyle.Render(t.Name)))
+
+			if t.Timezone != nil {
+				b.WriteString(dimStyle.Render(fmt.Sprintf(" (tz: %s)", *t.Timezone)))
 			}
-
-			b.WriteString(nameStyle.Render(member.Name))
-			b.WriteString("  ")
-			b.WriteString(getRoleBadgeStyle(member.Role).Render(member.Role))
-			b.WriteString("\n")
-			b.WriteString(emailStyle.Render("  "+member.Email))
 			b.WriteString("\n")
 		}
-
-		b.WriteString("\n")
-		b.WriteString(lipgloss.NewStyle().Foreground(mutedColor).Render(fmt.Sprintf("%d members", len(m.members))))
-		b.WriteString("\n")
 	}
 
 	b.WriteString("\n")
-	if !m.loading {
-		b.WriteString(helpStyle.Render("[r] Refresh  [Esc] Back"))
-	}
+	b.WriteString(helpStyle.Render("[esc/q] Back"))
 
 	return baseStyle.Render(b.String())
 }
 
-func (m *TeamListModel) fetchMembers() tea.Cmd {
+func (m *TeamListModel) fetchTeams() tea.Cmd {
 	return func() tea.Msg {
-		members, err := m.userService.GetMembers()
+		teams, err := m.teamService.GetMyTeams()
 		if err != nil {
 			return teamListErrorMsg(err.Error())
 		}
-		return teamListSuccessMsg{members: members}
+		return teamListLoadedMsg{teams: teams}
 	}
 }
 
 // Message types
-type teamListSuccessMsg struct {
-	members []*api.MemberResponse
+type teamListLoadedMsg struct {
+	teams []*api.TeamResponse
 }
 type teamListErrorMsg string

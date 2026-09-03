@@ -10,8 +10,8 @@ import (
 	"github.com/beamlabco/faro-helm-cli/internal/auth"
 	"github.com/beamlabco/faro-helm-cli/internal/config"
 	"github.com/beamlabco/faro-helm-cli/internal/leave"
-	"github.com/beamlabco/faro-helm-cli/internal/project"
 	"github.com/beamlabco/faro-helm-cli/internal/standup"
+	"github.com/beamlabco/faro-helm-cli/internal/team"
 	"github.com/beamlabco/faro-helm-cli/internal/user"
 	"github.com/beamlabco/faro-helm-cli/internal/ui"
 )
@@ -44,9 +44,9 @@ func main() {
 	attendanceService := attendance.NewService(apiClient)
 	leaveService := leave.NewService(apiClient)
 	userService := user.NewService(apiClient)
-	projectService := project.NewService(apiClient)
+	teamService := team.NewService(apiClient)
 
-	shellModel := ui.NewShellModel(authService, standupService, attendanceService, leaveService, userService, projectService, cfg)
+	shellModel := ui.NewShellModel(authService, standupService, attendanceService, leaveService, userService, teamService, cfg)
 	p := tea.NewProgram(shellModel, tea.WithAltScreen())
 
 	if _, err := p.Run(); err != nil {
