@@ -43,12 +43,7 @@ func main() {
 	standupService := standup.NewService(apiClient)
 	attendanceService := attendance.NewService(apiClient)
 	leaveService := leave.NewService(apiClient)
-	userService := user.NewService(apiClient, func() string {
-		if cfg.Auth == nil {
-			return ""
-		}
-		return cfg.Auth.Token
-	})
+	userService := user.NewService(apiClient)
 	projectService := project.NewService(apiClient)
 
 	shellModel := ui.NewShellModel(authService, standupService, attendanceService, leaveService, userService, projectService, cfg)

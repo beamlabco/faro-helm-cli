@@ -107,7 +107,8 @@ func (s *Service) Login(email, password string) error {
 		return fmt.Errorf("login failed: %w", err)
 	}
 
-	me, err := s.client.GetMe(resp.AccessToken)
+	s.client.SetToken(resp.AccessToken)
+	me, err := s.client.GetMe()
 	if err != nil {
 		return fmt.Errorf("failed to fetch account info: %w", err)
 	}
@@ -133,7 +134,6 @@ func (s *Service) Login(email, password string) error {
 	if err := config.Save(s.config); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
-	s.client.SetToken(resp.AccessToken)
 	return nil
 }
 
@@ -193,7 +193,8 @@ func (s *Service) PollDeviceToken(deviceCode string) (*api.DeviceTokenPair, erro
 
 // CompleteDeviceLogin saves auth data after a successful device flow poll.
 func (s *Service) CompleteDeviceLogin(tokenPair *api.DeviceTokenPair) error {
-	me, err := s.client.GetMe(tokenPair.AccessToken)
+	s.client.SetToken(tokenPair.AccessToken)
+	me, err := s.client.GetMe()
 	if err != nil {
 		return fmt.Errorf("failed to fetch account info: %w", err)
 	}
@@ -221,7 +222,6 @@ func (s *Service) CompleteDeviceLogin(tokenPair *api.DeviceTokenPair) error {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	s.client.SetToken(tokenPair.AccessToken)
 	return nil
 }
 

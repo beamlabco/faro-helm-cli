@@ -9,12 +9,11 @@ import (
 // Service handles user operations
 type Service struct {
 	client *api.Client
-	token  func() string
 }
 
 // NewService creates a new user service
-func NewService(client *api.Client, token func() string) *Service {
-	return &Service{client: client, token: token}
+func NewService(client *api.Client) *Service {
+	return &Service{client: client}
 }
 
 // GetMembers retrieves all members of the organization
@@ -33,7 +32,7 @@ func (s *Service) ChangePassword(currentPassword, newPassword string) error {
 		return fmt.Errorf("new password must be at least 8 characters")
 	}
 
-	if err := s.client.ChangePassword(s.token(), currentPassword, newPassword); err != nil {
+	if err := s.client.ChangePassword(currentPassword, newPassword); err != nil {
 		return fmt.Errorf("failed to change password: %w", err)
 	}
 

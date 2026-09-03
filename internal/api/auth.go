@@ -17,6 +17,12 @@ type AuthLoginResponse struct {
 	Account      MeAccount `json:"account"`
 }
 
+// AuthRefreshResponse is returned by POST /auth/refresh.
+type AuthRefreshResponse struct {
+	AccessToken  string `json:"accessToken"`
+	RefreshToken string `json:"refreshToken"`
+}
+
 // AuthRegisterRequest is the body for POST /auth/register.
 type AuthRegisterRequest struct {
 	Email            string `json:"email"`
@@ -63,16 +69,15 @@ func (c *Client) Login(req *AuthLoginRequest) (*AuthLoginResponse, error) {
 }
 
 // ChangePassword changes the authenticated user's password via POST /auth/password.
-func (c *Client) ChangePassword(accessToken, currentPassword, newPassword string) error {
+func (c *Client) ChangePassword(currentPassword, newPassword string) error {
 	resp, err := c.http.R().
-		SetAuthToken(accessToken).
 		SetBody(map[string]string{"currentPassword": currentPassword, "newPassword": newPassword}).
 		Post("/api/v1/auth/password")
 	if err != nil {
 		return err
 	}
 	if resp.IsError() {
-		return fmt.Errorf("failed to change password: HTTP %d", resp.StatusCode())
+		return parseError(resp)
 	}
 	return nil
 }
@@ -93,17 +98,17 @@ func (c *Client) Register(req *AuthRegisterRequest) error {
 }
 
 // GetMe fetches the authenticated account and workspace memberships.
-func (c *Client) GetMe(token string) (*MeResponse, error) {
+// Callers should ensure the client's token is set (via SetToken) first.
+func (c *Client) GetMe() (*MeResponse, error) {
 	var result MeResponse
 	resp, err := c.http.R().
-		SetAuthToken(token).
 		SetResult(&result).
 		Get("/api/v1/auth/me")
 	if err != nil {
 		return nil, err
 	}
 	if resp.IsError() {
-		return nil, fmt.Errorf("failed to fetch user info: HTTP %d", resp.StatusCode())
+		return nil, parseError(resp)
 	}
 	return &result, nil
 }
